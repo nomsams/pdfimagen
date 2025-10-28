@@ -1,614 +1,1664 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Power Suite</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/resemblejs/4.1.0/resemble.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-    <style>
-        :root {
-            --bg-dark: #1a1a1a; --text-dark: #e0e0e0; --primary-dark: #00aaff; --surface-dark: #2c2c2c; --border-dark: #444; --success-dark: #4caf50; --error-dark: #f44336;
-            --bg-light: #f5f5f5; --text-light: #212121; --primary-light: #0077cc; --surface-light: #ffffff; --border-light: #e0e0e0; --success-light: #2e7d32; --error-light: #c62828;
-            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-mono: 'Courier New', Courier, monospace;
-        }
-        html, body { height: 100%; margin: 0; overflow: hidden; }
-        body { font-family: var(--font-main); transition: background-color 0.3s, color 0.3s; display: flex; }
-        body.dark-mode { --bg: var(--bg-dark); --text: var(--text-dark); --primary: var(--primary-dark); --surface: var(--surface-dark); --border: var(--border-dark); --success: var(--success-dark); --error: var(--error-dark); }
-        body.light-mode { --bg: var(--bg-light); --text: var(--text-light); --primary: var(--primary-light); --surface: var(--surface-light); --border: var(--border-light); --success: var(--success-light); --error: var(--error-light); }
-        body { background-color: var(--bg); color: var(--text); }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>CarbonAra - Secure Certificate Environment</title>
 
-        /* --- Layout --- */
-        #sidebar { width: 350px; background-color: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 1.5rem; transition: background-color 0.3s; }
-        #main-content { flex-grow: 1; padding: 2rem; display: flex; flex-direction: column; overflow-y: auto; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-        .theme-switcher { display: flex; align-items: center; gap: 0.5rem; }
-        nav.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
-        nav.tabs button { padding: 0.8rem 1rem; cursor: pointer; border: none; background-color: transparent; color: inherit; font-size: 1rem; border-bottom: 3px solid transparent; opacity: 0.7; }
-        nav.tabs button.active { border-bottom-color: var(--primary); opacity: 1; }
-        .hidden { display: none !important; }
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@400;500;700&display=swap" rel="stylesheet"/>
 
-        /* --- File Drop Zone --- */
-        #drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 1.5rem; transition: border-color 0.3s, background-color 0.3s; }
-        #drop-zone.dragover { border-color: var(--primary); background-color: rgba(0, 170, 255, 0.1); }
-        #file-input { display: none; }
+  <!-- Libs -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrious/dist/qrious.min.js"></script>
 
-        /* --- Controls --- */
-        .control-group { margin-bottom: 1.5rem; }
-        .control-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
-        select, button { width: 100%; padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--bg); color: var(--text); font-size: 1rem; }
-        button { background-color: var(--primary); color: white; border: none; cursor: pointer; transition: opacity 0.2s; }
-        button:hover { opacity: 0.85; }
-        button:disabled { background-color: var(--border); cursor: not-allowed; }
+  <style>
+    :root {
+      --bg-color:#f8f9fa; --fg-color:#fff; --text-color:#212529;
+      --text-light-color:#6c757d; --border-color:#dee2e6; --primary-color:#0d6efd;
+      --primary-hover-color:#0b5ed7; --header-bg:#fff; --shadow-color:rgba(0,0,0,.05);
+      --success-color:#198754; --warning-color:#ffc107; --danger-color:#dc3545;
+      --font-main:'Montserrat',sans-serif; --font-display:'Great Vibes',cursive;
+      --sidebar-width: 400px;
+    }
+    [data-theme="dark"]{
+      --bg-color:#121212; --fg-color:#1e1e1e; --text-color:#e0e0e0;
+      --text-light-color:#8e8e8e; --border-color:#3a3a3a; --primary-color:#4dabf7;
+      --primary-hover-color:#74c0fc; --header-bg:#1e1e1e; --shadow-color:rgba(0,0,0,.3);
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{
+      font-family:var(--font-main); margin:0; background:var(--bg-color); color:var(--text-color);
+      transition:background .3s,color .3s; font-size:14px; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; overflow:hidden;
+    }
+    .header{
+      display:flex; justify-content:space-between; align-items:center; padding:12px 30px; background:var(--header-bg);
+      border-bottom:1px solid var(--border-color); box-shadow:0 2px 8px var(--shadow-color); position:sticky; top:0; z-index:100;
+    }
+    .logo{display:flex;align-items:center;gap:12px}
+    .logo svg{width:32px;height:32px;fill:var(--primary-color)}
+    .logo h1{margin:0;font-size:22px;font-weight:700}
+    .controls{display:flex;align-items:center;gap:20px}
+    #theme-toggle, #sidebar-toggle{
+      cursor:pointer;background:none;border:1px solid var(--border-color);border-radius:20px;padding:6px;display:flex;align-items:center;font-size:18px;line-height:1;transition:transform .2s,background-color .2s, box-shadow .2s;
+    }
+    #theme-toggle:hover, #sidebar-toggle:hover{transform:scale(1.1);background:var(--bg-color); box-shadow: 0 0 8px var(--shadow-color);}
+    .main-container{display:flex;height:calc(100vh - 65px); transition: grid-template-columns .3s ease;}
+    .sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);padding:20px;background:var(--fg-color);border-right:1px solid var(--border-color);overflow-y:auto; transition: min-width .3s ease, width .3s ease, padding .3s ease, transform .3s ease; position: relative;}
+    .sidebar-footer { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--border-color); text-align: center; color: var(--text-light-color); font-size: 12px; }
+    .preview-area{flex-grow:1;padding:30px;display:flex;justify-content:center;align-items:center;overflow:auto;background:var(--bg-color)}
+    .preview-frame{padding:20px;background:var(--fg-color);border-radius:8px;box-shadow:0 10px 30px var(--shadow-color);transform-origin:center center}
+    #previewCanvas{border:1px solid var(--border-color);object-fit:contain;cursor:grab}
+    #previewCanvas:active{cursor:grabbing}
+    .preview-controls{display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-size:12px;color:var(--text-light-color)}
+    .zoom-controls{display:flex;align-items:center;gap:10px}
+    .zoom-controls button{all:unset;cursor:pointer;padding:5px;font-weight:bold;font-size:18px}
+    .tabs{display:flex;margin-bottom:20px;border-bottom:1px solid var(--border-color)}
+    .tab-button{padding:12px 18px;cursor:pointer;border:none;background:none;font-size:16px;color:var(--text-light-color);border-bottom:3px solid transparent;font-weight:500; transition: color .2s, border-bottom-color .2s;}
+    .tab-button.active{color:var(--primary-color);border-bottom-color:var(--primary-color)}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+    .about-content h4 { margin-top: 2em; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+    .about-content ul { list-style-position: inside; padding-left: 10px; }
+    details{margin-bottom:10px;border:1px solid var(--border-color);border-radius:5px;transition:background-color .2s}
+    details:hover{background:color-mix(in srgb, var(--border-color) 20%, transparent)}
+    summary{cursor:pointer;padding:12px;font-weight:bold;background:color-mix(in srgb, var(--border-color) 30%, transparent);list-style:revert}
+    details[open]>summary{border-bottom:1px solid var(--border-color)}
+    .details-content{padding:15px}
+    .form-group{margin-bottom:18px}
+    label{display:block;margin-bottom:6px;font-weight:bold;font-size:12px;text-transform:uppercase;color:var(--text-light-color)}
+    .label-group{display:flex;justify-content:space-between;align-items:center}
+    .label-group small{font-size:11px;font-weight:normal;text-transform:none}
+    input,select{width:100%;padding:10px;box-sizing:border-box;background:var(--bg-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color); transition: border-color .2s, box-shadow .2s;}
+    input:focus{border-color:var(--primary-color);outline:none;box-shadow:0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent)}
+    .coord-group{display:flex;gap:10px;align-items:center}
+    .input-group{display:flex;gap:10px;align-items:center}
+    .input-group input{flex-grow:1}
+    .input-group button{width:auto;padding:8px;font-size:16px}
+    button{
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;background:var(--primary-color);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:16px;font-weight:bold;transition:background-color .2s,transform .1s, box-shadow .2s;width:100%;
+    }
+    button:hover{background:var(--primary-hover-color); box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 30%, transparent);}
+    button:active{transform:scale(.98)}
+    .secondary-button{background:#6c757d}
+    .secondary-button:hover{background:#5a6268; box-shadow: 0 4px 12px color-mix(in srgb, var(--text-light-color) 30%, transparent);}
 
-        /* --- Progress Bar --- */
-        #progress-container { margin-top: 1rem; }
-        #progress-bar { width: 0%; height: 8px; background-color: var(--primary); border-radius: 4px; transition: width 0.2s ease-out; }
-        #progress-label { text-align: center; font-size: 0.9rem; margin-top: 0.5rem; opacity: 0.8; }
+    #verify-container{text-align:center}
+    #verify-idle,#verify-loading,#verify-result{display:none}
+    #verify-idle.active,#verify-loading.active,#verify-result.active{display:block}
+    .verification-icon{font-size:60px;margin-bottom:20px}
+    .result-card{padding:20px;border-radius:8px;margin-top:20px;text-align:left}
+    .result-card h4{margin-top:0}
+    .result-card.high{border:1px solid var(--success-color);background:color-mix(in srgb, var(--success-color) 10%, transparent)}
+    .result-card.medium{border:1px solid var(--warning-color);background:color-mix(in srgb, var(--warning-color) 10%, transparent)}
+    .result-card.low{border:1px solid var(--danger-color);background:color-mix(in srgb, var(--danger-color) 10%, transparent)}
+    .verification-breakdown{list-style:none;padding:0}
+    .verification-breakdown li{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .verification-breakdown .icon{font-size:20px}
+    .verification-disclaimer { font-size: 11px; color: var(--text-light-color); margin-top: 20px; text-align: left; }
+    #quick-scan-info{border:1px dashed var(--primary-color);padding:15px;margin-bottom:20px;border-radius:5px;text-align:left}
+    #quick-scan-info p{margin:5px 0}
+    #diagnostics{
+      background:var(--bg-color);padding:15px;border-radius:4px;text-align:left;white-space:pre-wrap;word-wrap:break-word;font-family:monospace;font-size:12px;border:1px solid var(--border-color);max-height:300px;overflow-y:auto;
+    }
+    hr{border:none;border-top:1px solid var(--border-color);margin:20px 0}
 
-        /* --- Image Grid --- */
-        #image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
-        .image-card { border-radius: 8px; overflow: hidden; cursor: pointer; position: relative; border: 1px solid var(--border); background-color: var(--surface); }
-        .image-card:hover .overlay { opacity: 1; }
-        .image-card img { width: 100%; height: 150px; object-fit: contain; display: block; }
-        .image-card .overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; opacity: 0; transition: opacity 0.3s; padding: 5px; }
-        .image-card .overlay p { margin: 0; font-size: 0.8rem; }
-        .image-card.selected { box-shadow: 0 0 0 3px var(--primary); }
+    #progress-modal,#error-modal{
+      display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.5);justify-content:center;align-items:center;
+    }
+    .modal-content{background:var(--fg-color);padding:30px;border-radius:8px;text-align:center;width:90%;max-width:480px; box-shadow: 0 10px 30px rgba(0,0,0,.2);}
+    #progress-bar,#verify-progress-bar{width:100%;height:10px;background:var(--border-color);border-radius:5px;overflow:hidden;margin-top:15px}
+    #progress-bar-inner,#verify-progress-bar-inner{width:0%;height:100%;background:var(--primary-color);transition:width .25s ease}
 
-        /* --- Verifier --- */
-        #verifier-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem; }
-        .summary-item { background-color: var(--surface); padding: 1rem; border-radius: 8px; display: flex; align-items: center; gap: 1rem; }
-        .summary-item .icon { font-size: 1.5rem; }
-        .summary-item .status-PENDING { color: var(--text); opacity: 0.5; }
-        .summary-item .status-SUCCESS { color: var(--success); }
-        .summary-item .status-ERROR { color: var(--error); }
-        #log-output { background-color: #000; padding: 1rem; border-radius: 8px; font-family: var(--font-mono); white-space: pre-wrap; height: 400px; overflow-y: auto; font-size: 0.9rem; }
-        .log-entry .timestamp { opacity: 0.6; margin-right: 1rem; }
-        .log-entry .level-SUCCESS { color: var(--success); }
-        .log-entry .level-ERROR { color: var(--error); }
+    #verify-substeps{margin-top:12px;text-align:left;font-size:13px;color:var(--text-light-color)}
+    #verify-substeps li{display:flex;align-items:center;gap:8px;margin:6px 0}
+    #verify-substeps .dot{width:8px;height:8px;border-radius:50%;background:var(--border-color); position: relative; transition: background-color .3s;}
+    #verify-substeps .done{background:var(--success-color)}
+    #verify-substeps .active{background:var(--primary-color)}
+    #verify-substeps .active::before {
+        content: ''; position: absolute; display: block; width: 100%; height: 100%; border-radius: 50%;
+        background-color: var(--primary-color); animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.75); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
 
-        /* --- Modal --- */
-        #modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; display: flex; justify-content: center; align-items: center; }
-        #modal-content { background: var(--surface); padding: 2rem; border-radius: 12px; display: flex; gap: 2rem; max-width: 80vw; max-height: 80vh; }
-        #modal-preview { flex: 2; display: flex; justify-content: center; align-items: center; }
-        #modal-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        #modal-details { flex: 1; }
+    #verify-hint{margin-top:10px;color:var(--text-light-color);font-size:12px}
+    #verify-elapsed{margin-top:6px;color:var(--text-light-color);font-size:12px}
 
-        /* --- Toast Notifications --- */
-        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 200; }
-        .toast { padding: 1rem 1.5rem; margin-top: 1rem; border-radius: 8px; color: white; opacity: 0; transform: translateY(20px); transition: opacity 0.3s, transform 0.3s; }
-        .toast.show { opacity: 1; transform: translateY(0); }
-        .toast-success { background-color: var(--success); }
-        .toast-error { background-color: var(--error); }
-    </style>
+    #error-details{max-height:200px;overflow-y:auto;background:var(--bg-color);border:1px solid var(--border-color);padding:10px;margin-top:15px;text-align:left;font-family:monospace;font-size:12px}
+    
+    body.sidebar-collapsed .sidebar {
+      width: 0;
+      min-width: 0;
+      padding-left: 0;
+      padding-right: 0;
+      transform: translateX(calc(-1 * var(--sidebar-width)));
+    }
+
+    @media (max-width:900px){
+      body{overflow:auto}
+      .main-container{flex-direction:column;height:auto}
+      .sidebar{width:100%;min-width:unset;border-right:none;border-bottom:1px solid var(--border-color); transform: none !important;}
+      .preview-area{padding:15px}
+      .preview-frame{padding:10px}
+      .header h1{font-size:18px}
+      .logo svg{width:24px;height:24px}
+      .tab-button{padding: 10px 12px; font-size: 15px;}
+      body.sidebar-collapsed .sidebar {
+        display: none;
+      }
+    }
+  </style>
 </head>
-<body class="dark-mode">
+<body>
+<header class="header">
+  <div class="logo">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,16.5L6.5,12L7.91,10.59L11,13.67L16.09,8.59L17.5,10L11,16.5Z"></path></svg>
+    <h1>CarbonAra</h1>
+  </div>
+  <div class="controls">
+    <button id="sidebar-toggle" title="Toggle Sidebar" aria-label="Toggle sidebar">☰</button>
+    <button id="theme-toggle" title="Växla mörkt/ljust läge" aria-label="Toggle theme">🌙</button>
+  </div>
+</header>
 
-    <aside id="sidebar">
-        <header>
-            <h2>PDF Power Suite</h2>
-            <div class="theme-switcher">
-                <input type="checkbox" id="theme-toggle" checked>
+<main class="main-container">
+  <aside class="sidebar">
+    <div class="tabs">
+      <button class="tab-button active" onclick="showTab('generate')">Generate</button>
+      <button class="tab-button" onclick="showTab('verify')">Verify</button>
+      <button class="tab-button" onclick="showTab('about')">About</button>
+    </div>
+
+    <div id="pane-generate" class="tab-content active">
+      <details open>
+        <summary><strong>1. Certificate Data</strong></summary>
+        <div class="details-content">
+          <div class="form-group"><label for="input-name">Name</label><input id="input-name" type="text" value="John Doe"/></div>
+          <div class="form-group"><label for="input-amount">Amount</label><input id="input-amount" type="text" value="100"/></div>
+          <div class="form-group"><label for="input-date">Date</label><input id="input-date" type="date"/></div>
+          <div class="form-group"><label for="input-type">Type</label><input id="input-type" type="text" value="Carbon Credit"/></div>
+          <div class="form-group">
+            <label for="input-serial">Serial Number</label>
+            <div class="input-group">
+              <input id="input-serial" type="text" readonly title="Unikt serienummer för spårbarhet"/>
+              <button id="btn-generate-serial" type="button" title="Generera Nytt Serienummer">🔄</button>
             </div>
-        </header>
-        <nav class="tabs">
-            <button class="tab-link active" data-tab="extractor">Extractor</button>
-            <button class="tab-link" data-tab="verifier">Verifier</button>
-        </nav>
-
-        <div id="drop-zone">
-            <p>Drag & Drop PDF here or click to select</p>
-            <input type="file" id="file-input" accept="application/pdf">
+          </div>
         </div>
+      </details>
 
-        <div id="progress-container" class="hidden">
-            <div id="progress-bar"></div>
-            <p id="progress-label">Initializing...</p>
-        </div>
-
-        <!-- Extractor Controls -->
-        <div id="extractor-controls" class="tab-controls">
-            <div class="control-group">
-                <label for="method-filter">Filter by Method</label>
-                <select id="method-filter">
-                    <option value="all">All Methods</option>
-                    <option value="render">Page Rendering</option>
-                    <option value="raw">Raw Image Data</option>
-                    <option value="svg">SVG Conversion</option>
-                    <option value="annotation">Annotations</option>
-                    <option value="vector">Vector Heuristics</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label for="sort-by">Sort by</label>
-                <select id="sort-by">
-                    <option value="default">Default</option>
-                    <option value="similarity">Group Similar</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <button id="download-selected-btn" disabled>Download Selected as ZIP</button>
-            </div>
-        </div>
-
-        <!-- Verifier Controls -->
-        <div id="verifier-controls" class="tab-controls hidden">
-            <p class="disclaimer" style="text-align: left; margin-bottom: 1.5rem;">Just like with banknotes and other certificates - verification is not completely immune to tampering so trust with caution.</p>
-            <div class="control-group">
-                <button id="download-report-btn" disabled>Download Verification Report</button>
-            </div>
-        </div>
-    </aside>
-
-    <main id="main-content">
-        <div id="welcome-message">
-            <h1>Welcome</h1>
-            <p>Please drop a PDF file into the sidebar to begin.</p>
-        </div>
-        <div id="image-grid" class="hidden"></div>
-        <div id="verifier-view" class="hidden">
-            <div id="verifier-summary"></div>
-            <div id="log-output"></div>
-        </div>
-    </main>
-
-    <!-- Modal -->
-    <div id="modal-backdrop" class="hidden">
-        <div id="modal-content">
-            <div id="modal-preview">
-                <img id="modal-image" src="" alt="Image Preview">
-            </div>
-            <div id="modal-details">
-                <h3>Image Details</h3>
-                <p id="modal-info-method"></p>
-                <p id="modal-info-page"></p>
-                <p id="modal-info-dims"></p>
-                <div class="control-group">
-                    <button id="modal-download-png">Download as PNG</button>
+      <details open>
+        <summary><strong>2. Layout & Style</strong></summary>
+        <div class="details-content">
+          <details open>
+            <summary><strong>Setup & Branding</strong></summary>
+            <div class="details-content">
+              <div class="form-group">
+                <div class="label-group">
+                  <label for="image-upload">Background Image</label>
+                  <small id="bg-image-status"></small>
                 </div>
-                <div class="control-group">
-                    <button id="modal-download-jpg">Download as JPEG</button>
+                <input type="file" id="image-upload" accept="image/png, image/jpeg"/>
+              </div>
+              <div class="form-group">
+                <label for="logo-upload">Branding Logo (Optional)</label>
+                <input type="file" id="logo-upload" accept="image/png, image/jpeg"/>
+              </div>
+              <div class="form-group">
+                <label>Logo Position & Size (X, Y, Width)</label>
+                <div class="coord-group">
+                  <input id="input-x-logo" type="number" step="1"/>
+                  <input id="input-y-logo" type="number" step="1"/>
+                  <input id="input-w-logo" type="number" step="1"/>
                 </div>
+              </div>
             </div>
+          </details>
+
+          <details open>
+            <summary><strong>Text Elements</strong></summary>
+            <div class="details-content">
+              <div class="form-group"><label for="input-fontsize-name">Name Font Size (px)</label><input id="input-fontsize-name" type="number" min="1"/></div>
+              <div class="form-group">
+                <label>Name Position (X, Y)</label>
+                <div class="coord-group">
+                  <input id="input-x-name" type="number" step="1"/>
+                  <input id="input-y-name" type="number" step="1"/>
+                  <button type="button" onclick="centerElement('name')" title="Centrera namnet horisontellt">🎯</button>
+                </div>
+              </div>
+              <hr/>
+              <div class="form-group"><label for="input-fontsize-other">Data Font Size (px)</label><input id="input-fontsize-other" type="number" min="1"/></div>
+              <div class="form-group">
+                <label>Amount Position (X, Y)</label>
+                <div class="coord-group">
+                  <input id="input-x-amount" type="number" step="1"/>
+                  <input id="input-y-amount" type="number" step="1"/>
+                  <button type="button" onclick="centerElement('amount')" title="Centrera horisontellt">🎯</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Date Position (X, Y)</label>
+                <div class="coord-group">
+                  <input id="input-x-date" type="number" step="1"/>
+                  <input id="input-y-date" type="number" step="1"/>
+                  <button type="button" onclick="centerElement('date')" title="Centrera horisontellt">🎯</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Type Position (X, Y)</label>
+                <div class="coord-group">
+                  <input id="input-x-type" type="number" step="1"/>
+                  <input id="input-y-type" type="number" step="1"/>
+                  <button type="button" onclick="centerElement('type')" title="Centrera horisontellt">🎯</button>
+                </div>
+              </div>
+              <button id="btn-align-x" class="secondary-button" type="button" style="margin-bottom:1rem;">Align X for Amount & Type</button>
+              <hr/>
+              <div class="form-group"><label for="input-fontsize-serial">Serial Nr. Font Size (px)</label><input id="input-fontsize-serial" type="number" min="1"/></div>
+              <div class="form-group">
+                <label>Serial Nr. Position (X, Y)</label>
+                <div class="coord-group">
+                  <input id="input-x-serial" type="number" step="1"/>
+                  <input id="input-y-serial" type="number" step="1"/>
+                  <button type="button" onclick="centerElement('serial')" title="Centrera horisontellt">🎯</button>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details>
+            <summary><strong>QR Code</strong></summary>
+            <div class="details-content">
+              <div class="form-group">
+                <label for="qr-mode">Display QR Code</label>
+                <select id="qr-mode">
+                  <option value="with_qr">With QR Code</option>
+                  <option value="no_qr">No QR Code</option>
+                </select>
+              </div>
+              <div id="qr-controls">
+                <div class="form-group">
+                  <label>QR Position (X, Y)</label>
+                  <div class="coord-group">
+                    <input id="input-x-qr" type="number" step="1"/>
+                    <input id="input-y-qr" type="number" step="1"/>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>QR Transparency</label>
+                  <input id="input-alpha-qr" type="range" min="0" max="1" step="0.05"/>
+                </div>
+                <button id="btn-reset-qr" class="secondary-button" type="button">Reset QR Position</button>
+              </div>
+            </div>
+          </details>
+
+          <div class="input-group" style="margin-top:20px">
+            <button id="btn-reset-all" class="secondary-button" type="button">Reset All Positions</button>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary><strong>3. Export Options</strong></summary>
+        <div class="details-content">
+          <div class="form-group">
+            <label for="input-dpi">DPI</label>
+            <select id="input-dpi">
+              <option value="150">150</option>
+              <option value="300" selected>300</option>
+              <option value="600">600</option>
+            </select>
+          </div>
+          <hr/>
+          <button id="btn-export-pdf" type="button">🔒 Generate Single PDF</button>
+        </div>
+      </details>
+    </div>
+
+    <div id="pane-verify" class="tab-content">
+      <div id="verify-container">
+        <div id="verify-idle" class="active">
+          <div id="quick-scan-info" style="display:none;"></div>
+          <div class="verification-icon" aria-hidden="true">🛡️</div>
+          <h3>Secure Verification</h3>
+          <p id="verify-prompt">Upload a CarbonAra PDF to verify its authenticity.</p>
+          <input id="file-upload-verify" type="file" accept=".pdf" style="display:none;"/>
+          <div class="input-group" style="margin-top:10px; justify-content: center;">
+            <button type="button" onclick="document.getElementById('file-upload-verify').click();" style="width: auto;">Select PDF to Verify</button>
+          </div>
+        </div>
+
+        <div id="verify-loading">
+          <div class="verification-icon" aria-hidden="true">⏳</div>
+          <h3>Analyzing Certificate...</h3>
+          <p id="verify-progress-status">Initializing…</p>
+          <div id="verify-progress-bar"><div id="verify-progress-bar-inner"></div></div>
+          <ul id="verify-substeps">
+            <li><span class="dot" id="vstep-load"></span> Load PDF</li>
+            <li><span class="dot" id="vstep-locate"></span> Locate embedded payload</li>
+            <li><span class="dot" id="vstep-sign"></span> Validate cryptographic signature</li>
+            <li><span class="dot" id="vstep-attach"></span> Check image attachment & hashes</li>
+            <li><span class="dot" id="vstep-pixels"></span> Scan page image & watermark</li>
+            <li><span class="dot" id="vstep-final"></span> Finalize report</li>
+          </ul>
+          <p id="verify-hint">This performs cryptographic + pixel checks and <strong>can take some time</strong> on large files.</p>
+          <p id="verify-elapsed">Elapsed: <span id="verify-elapsed-span">0.0s</span></p>
+          <div class="input-group" style="margin-top:10px">
+            <button id="verify-cancel-btn" class="secondary-button" type="button">Stop Verification</button>
+          </div>
+        </div>
+
+        <div id="verify-result">
+          <h3 id="auth-prob"></h3>
+          <div id="result-card-details" class="result-card"></div>
+        </div>
+      </div>
+      <hr/>
+      <details>
+        <summary><strong>Expert Diagnostics</strong></summary>
+        <div class="details-content">
+          <div id="diagnostics">No data available.</div>
+          <button id="copy-diag-report" class="secondary-button" style="margin-top:10px;" type="button">Copy Report</button>
+        </div>
+      </details>
+    </div>
+
+    <div id="pane-about" class="tab-content">
+        <h3>About CarbonAra</h3>
+        <div class="about-content">
+            <p>CarbonAra is a tool to create and check special PDF certificates. It's designed to be secure, making it hard for someone to fake a certificate.</p>
+
+            <h4>How to Use (ELI5)</h4>
+            <ol>
+                <li><strong>Add Your Info:</strong> Go to the "Generate" tab and fill in the "Certificate Data" like name and date.</li>
+                <li><strong>Design It:</strong> In "Layout & Style", change the background, add a logo, and move text around until it looks perfect.</li>
+                <li><strong>Export:</strong> Click "Generate Single PDF" to download your secure certificate.</li>
+            </ol>
+
+            <h4>How Does Verification Work?</h4>
+            <p>When you create a PDF, the app hides a secret code and a digital signature inside it. This signature is based on all the data (name, date, image, text positions).</p>
+            <p>When you upload a PDF to the "Verify" tab, the app looks for that secret code and signature. It then performs several checks:</p>
+            <ul>
+                <li>It recalculates the signature based on the data it finds and checks if it matches the one stored inside.</li>
+                <li>It checks image hashes and a hidden watermark in the pixels to be extra sure.</li>
+            </ul>
+            <p>
+                <strong>🟢 High Trust:</strong> Means the signature and all the hidden checks match perfectly. It's very likely authentic.
+                <br>
+                <strong>🟡 Medium/Low Trust:</strong> Means something doesn't match. The signature might be wrong, or the image might have been changed. You should be careful with this certificate.
+            </p>
+
+            <h4>Cool Features</h4>
+            <ul>
+                <li><strong>Secure by Design:</strong> Uses modern cryptography (HMAC-SHA256) to sign every certificate.</li>
+                <li><strong>Pixel Watermarking:</strong> Hides data directly in the image pixels, making it resistant to simple edits.</li>
+                <li><strong>All-in-One:</strong> No server needed! Everything happens securely in your browser. Your data never leaves your computer.</li>
+                <li><strong>Customizable:</strong> Drag and drop text, change fonts, and use your own branding to make certificates your own.</li>
+            </ul>
         </div>
     </div>
 
-    <div id="toast-container"></div>
+    <div class="sidebar-footer">
+      <span id="app-version"></span>
+    </div>
+  </aside>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // --- GLOBAL & UI ELEMENTS ---
-        const body = document.body;
-        const themeToggle = document.getElementById('theme-toggle');
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const tabLinks = document.querySelectorAll('.tab-link');
-        const tabControls = document.querySelectorAll('.tab-controls');
-        const mainContent = document.getElementById('main-content');
-        const welcomeMessage = document.getElementById('welcome-message');
-        const imageGrid = document.getElementById('image-grid');
-        const verifierView = document.getElementById('verifier-view');
-        const progressContainer = document.getElementById('progress-container');
-        const progressBar = document.getElementById('progress-bar');
-        const progressLabel = document.getElementById('progress-label');
-        const toastContainer = document.getElementById('toast-container');
-        const modalBackdrop = document.getElementById('modal-backdrop');
+  <section class="preview-area" id="preview-area">
+    <div class="preview-frame" id="preview-frame">
+      <canvas id="previewCanvas" aria-label="Certificate preview"></canvas>
+      <div class="preview-controls">
+        <div id="canvas-dimensions">...</div>
+        <div class="zoom-controls">
+          <button id="zoom-out" title="Zoom Out" type="button" aria-label="Zoom out">-</button>
+          <span id="zoom-level">100%</span>
+          <button id="zoom-in" title="Zoom In" type="button" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
 
-        let currentFile = null;
-        let extractedImages = [];
-        let selectedImages = new Set();
-        let currentAppMode = 'extractor'; // 'extractor' or 'verifier'
+<!-- Modals -->
+<div id="progress-modal" role="dialog" aria-modal="true" aria-labelledby="progress-title">
+  <div class="modal-content">
+    <h3 id="progress-title">Generating PDF...</h3>
+    <p id="progress-status">Initializing secure processes...</p>
+    <div id="progress-bar"><div id="progress-bar-inner"></div></div>
+  </div>
+</div>
 
-        // --- PDF.js WORKER ---
-        const pdfjsLib = window['pdfjs-dist/build/pdf'];
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+<div id="error-modal" role="dialog" aria-modal="true" aria-labelledby="error-title">
+  <div class="modal-content">
+    <h3 id="error-title">An Error Occurred</h3>
+    <p id="error-message"></p>
+    <pre id="error-details"></pre>
+    <button id="error-close-btn" type="button">Close</button>
+  </div>
+</div>
 
-        // --- CORE APP LOGIC ---
-        const init = () => {
-            setupEventListeners();
-            showToast('Application Ready', 'success');
-        };
+<script>
+// Increment for each new version
+const APP_VERSION = "1.2";
 
-        const setupEventListeners = () => {
-            themeToggle.addEventListener('change', () => body.classList.toggle('dark-mode') || body.classList.toggle('light-mode'));
-            dropZone.addEventListener('click', () => fileInput.click());
-            dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-            dropZone.addEventListener('drop', handleFileDrop);
-            fileInput.addEventListener('change', e => handleFileSelect(e.target.files));
-            tabLinks.forEach(link => link.addEventListener('click', switchTab));
-            modalBackdrop.addEventListener('click', (e) => { if (e.target === modalBackdrop) modalBackdrop.classList.add('hidden'); });
-            imageGrid.addEventListener('click', handleGridClick);
+/* ---------- Small Utils ---------- */
+const id = x => document.getElementById(x);
+const delay = ms => new Promise(r => setTimeout(r, ms));
+const safeJson = s => { try { return JSON.parse(s); } catch { return null; } };
+const u8ToB64 = u8 => { let bin=''; for(let i=0;i<u8.length;i++) bin+=String.fromCharCode(u8[i]); return btoa(bin); };
+const b64ToU8 = b64 => { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; };
+const dataURLtoU8 = dataURL => { const base64=(dataURL.split(',')[1]||''); return b64ToU8(base64); };
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+async function sha256(input){
+  let ab;
+  if (input instanceof ArrayBuffer) { ab = input; }
+  else if (input && input.buffer instanceof ArrayBuffer) { ab = input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength); }
+  else { throw new Error('sha256: unsupported input type'); }
+  const h = await crypto.subtle.digest('SHA-256', ab);
+  return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function hashRGBOnly(rgba){
+  const rgb=new Uint8Array(Math.floor(rgba.length/4)*3);
+  for(let s=0,d=0;s<rgba.length;s+=4){ rgb[d++]=rgba[s]; rgb[d++]=rgba[s+1]; rgb[d++]=rgba[s+2]; }
+  return sha256(rgb);
+}
+function loadImageFromURL(url){ return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res(img); img.onerror=rej; img.crossOrigin='anonymous'; img.src=url; }); }
+function loadImageFromDataURL(dataURL){ return loadImageFromURL(dataURL); }
 
-            // Extractor controls
-            document.getElementById('method-filter').addEventListener('change', renderImages);
-            document.getElementById('sort-by').addEventListener('change', renderImages);
-            document.getElementById('download-selected-btn').addEventListener('click', downloadSelectedAsZip);
-        };
+/* ---------- Watermark helpers ---------- */
+const WM_V2 = { header:"CC2|", footer:"|END2", repeat:7, stride:3 };
+function crc32(str){
+  let c = ~0, table = crc32.table;
+  if(!table){
+    table = crc32.table = new Uint32Array(256);
+    for(let n=0;n<256;n++){ let c2=n; for(let k=0;k<8;k++) c2=(c2&1)?(0xEDB88320^(c2>>>1)):(c2>>>1); table[n]=c2>>>0; }
+  }
+  for(let i=0;i<str.length;i++) c = table[(c^str.charCodeAt(i))&0xFF] ^ (c>>>8);
+  return (~c>>>0).toString(16).padStart(8,'0');
+}
+function toBitString(str){ return Array.from(str).map(ch=>ch.charCodeAt(0).toString(2).padStart(8,'0')).join(''); }
+function fromBitString(bits){ const bytes=bits.match(/.{1,8}/g)||[]; return bytes.map(b=>String.fromCharCode(parseInt(b,2))).join(''); }
+function embedLSBv2(ctx2d, payloadStr){
+  const img = ctx2d.getImageData(0,0,ctx2d.canvas.width,ctx2d.canvas.height);
+  const d = img.data;
+  const crc = crc32(payloadStr);
+  const full = WM_V2.header + payloadStr + '|' + crc + WM_V2.footer;
+  const bits = toBitString(full);
+  const cap = Math.floor(d.length/4 / WM_V2.stride);
+  const need = Math.ceil(bits.length * WM_V2.repeat);
+  if(need > cap) throw new Error(`Watermark too large (${need} > capacity ${cap})`);
+  let ptr = 0;
+  for(let i=0;i<bits.length;i++){
+    const bit = bits[i] === '1' ? 1 : 0;
+    for(let rep=0; rep<WM_V2.repeat; rep++){
+      const pxIndex = (ptr++ * WM_V2.stride) * 4;
+      if(pxIndex+2 >= d.length) break;
+      d[pxIndex+2] = (d[pxIndex+2] & 0xFE) | bit;
+    }
+  }
+  ctx2d.putImageData(img,0,0);
+}
+function extractLSBv2(ctx2d){
+  const img = ctx2d.getImageData(0,0,ctx2d.canvas.width,ctx2d.canvas.height);
+  const d = img.data;
+  const bits = [];
+  for(let p=0; p<Math.floor(d.length/4/WM_V2.stride); p++){
+    const blue = d[(p*WM_V2.stride)*4 + 2];
+    bits.push(blue & 1 ? '1':'0');
+  }
+  const groups = Math.floor(bits.length / WM_V2.repeat);
+  let dec = '';
+  for(let g=0; g<groups; g++){
+    let ones=0;
+    for(let j=0;j<WM_V2.repeat;j++) if(bits[g*WM_V2.repeat + j]==='1') ones++;
+    dec += (ones > WM_V2.repeat/2) ? '1' : '0';
+  }
+  const raw = fromBitString(dec);
+  const sidx = raw.indexOf(WM_V2.header);
+  const eidx = raw.indexOf(WM_V2.footer, sidx>=0 ? sidx : 0);
+  if(sidx<0 || eidx<0) return { ok:false };
+  const inside = raw.slice(sidx + WM_V2.header.length, eidx);
+  const pipe = inside.lastIndexOf('|');
+  if(pipe<0) return { ok:false };
+  const msg = inside.slice(0, pipe);
+  const crc = inside.slice(pipe+1);
+  const ok = crc32(msg) === crc;
+  return { ok, message: msg, crc };
+}
+function embedLSBv1(ctx2d, str){
+  const term="::END::";
+  const bits = Array.from(str+term).map(c=>c.charCodeAt(0).toString(2).padStart(8,'0')).join('');
+  const img=ctx2d.getImageData(0,0,ctx2d.canvas.width,ctx2d.canvas.height);
+  const data=img.data;
+  const capacity = Math.floor(data.length/4);
+  if(bits.length > capacity) throw new Error('Legacy watermark too large');
+  for(let i=0;i<bits.length;i++){ const idx=i*4+2; data[idx]=(data[idx]&0xFE)|(bits[i]==='1'?1:0); }
+  ctx2d.putImageData(img,0,0);
+}
+function extractLSBv1(ctx2d){
+  const img=ctx2d.getImageData(0,0,ctx2d.canvas.width,ctx2d.canvas.height);
+  const d=img.data; let bits='';
+  for(let i=0;i<d.length;i+=4) bits+=(d[i+2]&1);
+  const bytes=bits.match(/.{1,8}/g)||[]; let s='';
+  for(const b of bytes){ if(b.length<8) continue; s+=String.fromCharCode(parseInt(b,2)); if(s.endsWith('::END::')) return s.slice(0,-7); }
+  return null;
+}
 
-        const handleFileDrop = (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            handleFileSelect(e.dataTransfer.files);
-        };
+/* ---------- App ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = id('previewCanvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently:true, alpha: false, colorSpace: 'srgb' });
+  const bgImage = new Image();
+  const logoImage = new Image();
+  let qrImage = new Image();
 
-        const handleFileSelect = (files) => {
-            if (files.length === 0 || files[0].type !== 'application/pdf') {
-                showToast('Please select a valid PDF file.', 'error');
-                return;
-            }
-            currentFile = files[0];
-            showToast(`Loaded: ${currentFile.name}`, 'success');
-            welcomeMessage.classList.add('hidden');
-            processFile();
-        };
+  let bgImageLoaded=false, logoImageLoaded=false, zoomLevel=1, isRendering=false;
 
-        const switchTab = (e) => {
-            currentAppMode = e.target.dataset.tab;
-            tabLinks.forEach(l => l.classList.remove('active'));
-            e.target.classList.add('active');
-            tabControls.forEach(c => c.classList.add('hidden'));
-            document.getElementById(`${currentAppMode}-controls`).classList.remove('hidden');
-            processFile(); // Re-process file for the new mode
-        };
+  const inputs = {
+    name: id('input-name'), amount:id('input-amount'), date:id('input-date'), type:id('input-type'), serial:id('input-serial'),
+    dpi:id('input-dpi'),
+    fontSizeName:id('input-fontsize-name'), fontSizeOther:id('input-fontsize-other'), fontSizeSerial:id('input-fontsize-serial'),
+    xName:id('input-x-name'), yName:id('input-y-name'),
+    xAmount:id('input-x-amount'), yAmount:id('input-y-amount'),
+    xDate:id('input-x-date'), yDate:id('input-y-date'),
+    xType:id('input-x-type'), yType:id('input-y-type'),
+    xSerial:id('input-x-serial'), ySerial:id('input-y-serial'),
+    xLogo:id('input-x-logo'), yLogo:id('input-y-logo'), wLogo:id('input-w-logo'),
+    qrMode:id('qr-mode'), xQr:id('input-x-qr'), yQr:id('input-y-qr'), alphaQr:id('input-alpha-qr'),
+  };
 
-        const processFile = () => {
-            if (!currentFile) return;
-            const fileReader = new FileReader();
-            fileReader.onload = (e) => {
-                const pdfData = new Uint8Array(e.target.result);
-                if (currentAppMode === 'extractor') {
-                    imageGrid.classList.remove('hidden');
-                    verifierView.classList.add('hidden');
-                    runExtractor(pdfData);
-                } else {
-                    imageGrid.classList.add('hidden');
-                    verifierView.classList.remove('hidden');
-                    runVerifier(pdfData);
-                }
-            };
-            fileReader.readAsArrayBuffer(currentFile);
-        };
+  let textElements={}, logoElement={}, qrCodeElement={};
+  let autoGenParam = false;
 
-        const updateProgress = (value, label) => {
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = `${value}%`;
-            progressLabel.textContent = label;
-            if (value >= 100) {
-                setTimeout(() => progressContainer.classList.add('hidden'), 1000);
-            }
-        };
+  let verifyWorker = null;
+  let verifyTimer = null;
+  let verifyStartTs = 0;
 
-        const showToast = (message, type = 'success') => {
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            toast.textContent = message;
-            toastContainer.appendChild(toast);
-            setTimeout(() => {
-                toast.classList.add('show');
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                    setTimeout(() => toast.remove(), 300);
-                }, 3000);
-            }, 10);
-        };
+  async function init(){
+    id('app-version').textContent = `v${APP_VERSION}`;
+    ensureDate();
+    generateNewSerial();
+    addEventListeners();
+    try { await (document.fonts?.ready || Promise.resolve()); } catch {}
 
-        // --- IMAGE EXTRACTOR LOGIC ---
-        const runExtractor = async (pdfData) => {
-            extractedImages = [];
-            selectedImages.clear();
-            updateDownloadButton();
-            imageGrid.innerHTML = '';
-            updateProgress(0, 'Loading PDF document...');
+    try {
+      const res = await fetch('image.png', { cache: 'no-store' });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        bgImage.onload=()=>{ bgImageLoaded=true; id('bg-image-status').textContent='✅ image.png loaded'; setupCanvas(bgImage.naturalWidth,bgImage.naturalHeight); URL.revokeObjectURL(url); maybeAutoGen(); };
+        bgImage.onerror=()=>{ id('bg-image-status').textContent='⚠️ image.png failed, using blank canvas'; setupCanvas(1414,2000); URL.revokeObjectURL(url); maybeAutoGen(); };
+        bgImage.src=url;
+      } else {
+        id('bg-image-status').textContent='ℹ️ No image.png found (upload one)';
+        setupCanvas(1414,2000);
+        maybeAutoGen();
+      }
+    } catch {
+      id('bg-image-status').textContent='ℹ️ image.png unavailable (upload one)';
+      setupCanvas(1414,2000);
+      maybeAutoGen();
+    }
 
-            const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-            const numPages = pdf.numPages;
-            updateProgress(5, `Loaded ${numPages} pages. Starting extraction...`);
+    handleUrlParams();
+  }
 
-            for (let i = 1; i <= numPages; i++) {
-                const page = await pdf.getPage(i);
-                const progress = 5 + (i / numPages) * 90;
-                updateProgress(progress, `Processing page ${i} of ${numPages}...`);
+  function setupCanvas(w,h){
+    canvas.width = Number.isFinite(w)&&w>0 ? Math.round(w) : 1414;
+    canvas.height = Number.isFinite(h)&&h>0 ? Math.round(h) : 2000;
+    id('canvas-dimensions').textContent = `${canvas.width} x ${canvas.height} px`;
+    resetAllPositions();
+    fitCanvasToView();
+    requestRedraw();
+  }
 
-                // Run all extraction methods in parallel for each page
-                await Promise.all([
-                    extractByRendering(page, i),
-                    extractByRawData(page, i),
-                    extractAsSVG(page, i),
-                    extractFromAnnotations(page, i),
-                    extractByVectorHeuristics(page, i)
-                ]);
-            }
-            updateProgress(100, 'Extraction complete!');
-            renderImages();
-        };
+  window.showTab=(name)=>{
+    document.querySelectorAll('.tab-content, .tab-button').forEach(el=>el.classList.remove('active'));
+    id(`pane-${name}`).classList.add('active');
+    document.querySelector(`.tab-button[onclick="showTab('${name}')"]`).classList.add('active');
+  };
 
-        // Method 1: Page Rendering
-        async function extractByRendering(page, pageNum) {
-            const viewport = page.getViewport({ scale: 2.0 });
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            await page.render({ canvasContext: context, viewport }).promise;
-            extractedImages.push({ src: canvas.toDataURL('image/png'), method: 'render', page: pageNum, id: `render-${pageNum}` });
-        }
+  id('theme-toggle').addEventListener('click',()=>{
+    const t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme',t);
+    id('theme-toggle').textContent = t==='dark'?'☀️':'🌙';
+    requestRedraw();
+  });
 
-        // Method 2: Raw Image Data
-        async function extractByRawData(page, pageNum) {
-            const opList = await page.getOperatorList();
-            for (let i = 0; i < opList.fnArray.length; i++) {
-                if (opList.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
-                    const imgName = opList.argsArray[i][0];
-                    const img = await page.objs.get(imgName);
-                    if (!img || !img.data) continue;
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-                    const imgData = ctx.createImageData(img.width, img.height);
-                    // Handle different color spaces
-                    if (img.kind === pdfjsLib.ImageKind.GRAYSCALE_1BPP) {
-                        // Simple black and white
-                        let buffer = imgData.data;
-                        let j = 0;
-                        for (let k = 0; k < img.data.length; k++) {
-                            buffer[j++] = img.data[k]; buffer[j++] = img.data[k]; buffer[j++] = img.data[k]; buffer[j++] = 255;
-                        }
-                    } else if (img.kind === pdfjsLib.ImageKind.RGB_24BPP) {
-                        imgData.data.set(img.data);
-                    } else {
-                        continue; // Skip unsupported formats for simplicity
-                    }
-                    ctx.putImageData(imgData, 0, 0);
-                    extractedImages.push({ src: canvas.toDataURL('image/jpeg'), method: 'raw', page: pageNum, id: `raw-${pageNum}-${i}` });
-                }
-            }
-        }
+  id('sidebar-toggle').addEventListener('click', () => {
+    document.body.classList.toggle('sidebar-collapsed');
+  });
 
-        // Method 3: SVG Conversion
-        async function extractAsSVG(page, pageNum) {
-            const viewport = page.getViewport({ scale: 1.0 });
-            const svgGfx = new pdfjsLib.SVGGraphics(page.commonObjs, page.objs);
-            const svg = await svgGfx.getSVG(await page.getOperatorList(), viewport);
-            const svgString = new XMLSerializer().serializeToString(svg);
-            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(svgBlob);
-            extractedImages.push({ src: url, method: 'svg', page: pageNum, id: `svg-${pageNum}` });
-        }
+  function addEventListeners(){
+    const debounced = (fn => { let t; return ()=>{ clearTimeout(t); t=setTimeout(fn,30); } })(requestRedraw);
+    Object.values(inputs).forEach(el=> el.addEventListener('input', debounced));
 
-        // Method 4: Annotation Extraction
-        async function extractFromAnnotations(page, pageNum) {
-            const annotations = await page.getAnnotations();
-            annotations.filter(a => a.subtype === 'Stamp' && a.bitmap).forEach((a, i) => {
-                const img = a.bitmap;
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                const imgData = ctx.createImageData(img.width, img.height);
-                imgData.data.set(img.data);
-                ctx.putImageData(imgData, 0, 0);
-                extractedImages.push({ src: canvas.toDataURL('image/png'), method: 'annotation', page: pageNum, id: `annotation-${pageNum}-${i}` });
-            });
-        }
-
-        // Method 5: Vector Path Heuristics (Simplified)
-        async function extractByVectorHeuristics(page, pageNum) {
-            // This is a simplified heuristic: find paths that are explicitly closed and filled.
-            const opList = await page.getOperatorList();
-            if (opList.fnArray.includes(pdfjsLib.OPS.fill) || opList.fnArray.includes(pdfjsLib.OPS.eoFill)) {
-                // If fill operations exist, it's likely there are vector graphics.
-                // We'll just re-render the page with a special flag, but label it differently.
-                // A true implementation would parse paths, which is extremely complex.
-                const viewport = page.getViewport({ scale: 1.5 });
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                await page.render({ canvasContext: context, viewport }).promise;
-                extractedImages.push({ src: canvas.toDataURL('image/png'), method: 'vector', page: pageNum, id: `vector-${pageNum}` });
-            }
-        }
-
-        const renderImages = () => {
-            imageGrid.innerHTML = '';
-            let imagesToRender = [...extractedImages];
-            const filterValue = document.getElementById('method-filter').value;
-            if (filterValue !== 'all') {
-                imagesToRender = imagesToRender.filter(img => img.method === filterValue);
-            }
-            // Sorting logic would go here if needed
-            if (imagesToRender.length === 0) {
-                imageGrid.innerHTML = '<p>No images found with the current filters.</p>';
-                return;
-            }
-            imagesToRender.forEach((image, index) => {
-                const card = document.createElement('div');
-                card.className = 'image-card';
-                card.dataset.index = index;
-                card.innerHTML = `
-                    <img src="${image.src}" loading="lazy">
-                    <div class="overlay">
-                        <p><strong>Method:</strong> ${image.method}</p>
-                        <p><strong>Page:</strong> ${image.page}</p>
-                    </div>
-                `;
-                if (selectedImages.has(image.id)) {
-                    card.classList.add('selected');
-                }
-                imageGrid.appendChild(card);
-            });
-        };
-
-        const handleGridClick = (e) => {
-            const card = e.target.closest('.image-card');
-            if (!card) return;
-            const image = extractedImages[card.dataset.index];
-            if (e.ctrlKey || e.metaKey) {
-                card.classList.toggle('selected');
-                if (selectedImages.has(image.id)) {
-                    selectedImages.delete(image.id);
-                } else {
-                    selectedImages.add(image.id);
-                }
-                updateDownloadButton();
-            } else {
-                openImageModal(image);
-            }
-        };
-
-        const updateDownloadButton = () => {
-            const btn = document.getElementById('download-selected-btn');
-            btn.disabled = selectedImages.size === 0;
-            btn.textContent = `Download ${selectedImages.size} Selected as ZIP`;
-        };
-
-        const downloadSelectedAsZip = async () => {
-            const zip = new JSZip();
-            const imagesToDownload = extractedImages.filter(img => selectedImages.has(img.id));
-            for (const image of imagesToDownload) {
-                const response = await fetch(image.src);
-                const blob = await response.blob();
-                zip.file(`page${image.page}-${image.method}-${image.id.split('-').pop()}.png`, blob);
-            }
-            zip.generateAsync({ type: "blob" }).then(content => {
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(content);
-                link.download = "extracted_images.zip";
-                link.click();
-                URL.revokeObjectURL(link.href);
-            });
-        };
-
-        const openImageModal = (image) => {
-            document.getElementById('modal-image').src = image.src;
-            document.getElementById('modal-info-method').textContent = `Method: ${image.method}`;
-            document.getElementById('modal-info-page').textContent = `Page: ${image.page}`;
-            const img = new Image();
-            img.onload = () => {
-                document.getElementById('modal-info-dims').textContent = `Dimensions: ${img.width} x ${img.height}`;
-            };
-            img.src = image.src;
-            modalBackdrop.classList.remove('hidden');
-            // Setup download buttons
-            document.getElementById('modal-download-png').onclick = () => downloadImage(image.src, 'png');
-            document.getElementById('modal-download-jpg').onclick = () => downloadImage(image.src, 'jpeg');
-        };
-
-        const downloadImage = (src, format) => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-                const link = document.createElement('a');
-                link.download = `image.${format}`;
-                link.href = canvas.toDataURL(`image/${format}`);
-                link.click();
-            };
-            img.src = src;
-        };
-
-        // --- VERIFIER LOGIC ---
-        const runVerifier = async (pdfData) => {
-            const summaryContainer = document.getElementById('verifier-summary');
-            const logOutput = document.getElementById('log-output');
-            const reportBtn = document.getElementById('download-report-btn');
-            reportBtn.disabled = true;
-            let logContent = "";
-
-            const statuses = {
-                load: 'PENDING', crypto: 'PENDING', payload: 'PENDING', hash: 'PENDING', watermark: 'PENDING', structure: 'PENDING'
-            };
-
-            const updateSummary = () => {
-                summaryContainer.innerHTML = `
-                    <div class="summary-item"><span class="icon status-${statuses.load}">●</span> <div><strong>PDF Loaded</strong><br><span class="status-${statuses.load}">${statuses.load}</span></div></div>
-                    <div class="summary-item"><span class="icon status-${statuses.crypto}">●</span> <div><strong>Crypto Check</strong><br><span class="status-${statuses.crypto}">${statuses.crypto}</span></div></div>
-                    <div class="summary-item"><span class="icon status-${statuses.payload}">●</span> <div><strong>Payload Found</strong><br><span class="status-${statuses.payload}">${statuses.payload}</span></div></div>
-                    <div class="summary-item"><span class="icon status-${statuses.hash}">●</span> <div><strong>Attachment Hash</strong><br><span class="status-${statuses.hash}">${statuses.hash}</span></div></div>
-                    <div class="summary-item"><span class="icon status-${statuses.watermark}">●</span> <div><strong>Watermark Check</strong><br><span class="status-${statuses.watermark}">${statuses.watermark}</span></div></div>
-                    <div class="summary-item"><span class="icon status-${statuses.structure}">●</span> <div><strong>Structure Integrity</strong><br><span class="status-${statuses.structure}">${statuses.structure}</span></div></div>
-                `;
-            };
-
-            const log = (message, level = 'INFO') => {
-                const time = new Date().toLocaleTimeString('en-US', { hour12: false }) + `.${String(new Date().getMilliseconds()).padStart(3, '0')}`;
-                const entry = `<div class="log-entry"><span class="timestamp">[${time}]</span> <span class="level-${level}">${message}</span></div>`;
-                logOutput.innerHTML += entry;
-                logOutput.scrollTop = logOutput.scrollHeight;
-                logContent += `[${time}] [${level}] ${message}\n`;
-            };
-
-            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-            logOutput.innerHTML = '';
-            updateSummary();
-            log('Starting verification...');
-            await sleep(500);
-
-            try {
-                await pdfjsLib.getDocument({ data: pdfData }).promise;
-                statuses.load = 'SUCCESS';
-                log('PDF document loaded successfully.', 'SUCCESS');
-            } catch (e) {
-                statuses.load = 'ERROR';
-                log('Failed to load PDF document.', 'ERROR');
-                updateSummary();
-                return;
-            }
-            updateSummary();
-            await sleep(800);
-
-            log('Performing crypto check...');
-            await sleep(1200);
-            statuses.crypto = 'SUCCESS';
-            log('Crypto check: PASS', 'SUCCESS');
-            updateSummary();
-
-            log('Searching for payload via: attachment-json...');
-            await sleep(1000);
-            statuses.payload = 'SUCCESS';
-            log(`Payload found via: attachment-json (Serial: SN-1761680010721-UU8BVTY6W)`, 'INFO');
-            updateSummary();
-
-            log('Verifying attachment hash...');
-            await sleep(1000);
-            statuses.hash = 'SUCCESS';
-            log('Attachment hash: PASS', 'SUCCESS');
-            updateSummary();
-
-            log('Performing attachment pixel/watermark check...');
-            await sleep(1500);
-            statuses.watermark = 'SUCCESS';
-            log('Attachment pixel/watermark check: pixel=false, water=true', 'SUCCESS');
-            updateSummary();
-
-            log('Checking document structure integrity...');
-            await sleep(1000);
-            statuses.structure = 'SUCCESS';
-            log('Document structure integrity: PASS', 'SUCCESS');
-            updateSummary();
-
-            reportBtn.disabled = false;
-            reportBtn.onclick = () => {
-                const blob = new Blob([logContent], { type: 'text/plain' });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = `verification_report_${Date.now()}.txt`;
-                link.click();
-                URL.revokeObjectURL(link.href);
-            };
-        };
-
-        // --- INITIALIZE THE APP ---
-        init();
+    id('image-upload').addEventListener('change', onBgUpload);
+    id('logo-upload').addEventListener('change', onLogoUpload);
+    id('btn-reset-all').addEventListener('click', resetAllPositions);
+    id('btn-reset-qr').addEventListener('click', resetQr);
+    id('btn-export-pdf').addEventListener('click', exportPdf);
+    id('btn-generate-serial').addEventListener('click', generateNewSerial);
+    id('btn-align-x').addEventListener('click', ()=>{ inputs.xType.value=inputs.xAmount.value; requestRedraw(); });
+    id('file-upload-verify').addEventListener('change', startVerification);
+    id('zoom-in').addEventListener('click', ()=>updateZoom(0.2));
+    id('zoom-out').addEventListener('click', ()=>updateZoom(-0.2));
+    id('error-close-btn').addEventListener('click', ()=> id('error-modal').style.display='none');
+    id('copy-diag-report').addEventListener('click', async ()=>{
+      const txt=id('diagnostics').textContent||'';
+      try{ await navigator.clipboard.writeText(txt); alert('Diagnostics copied.'); }
+      catch{
+        const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); alert('Diagnostics copied.');
+      }
     });
-    </script>
+    id('verify-cancel-btn').addEventListener('click', cancelVerification);
+
+    let dragging=false, key=null, offset={x:0,y:0};
+    canvas.addEventListener('mousedown', e=>{
+      const p = getMouse(e);
+      const elems = {...textElements, logo:logoElement, qr:qrCodeElement};
+      const keys = Object.keys(elems).reverse();
+      for(const k of keys){
+        const el = elems[k]; if(!el||!el.draggable) continue;
+        ctx.font = `${el.fontSize||12}px '${el.font||'Montserrat'}'`;
+        const w = k==='logo' ? el.width : (k==='qr' ? el.size : ctx.measureText(el.text||'').width);
+        const h = k==='logo' ? el.height: (k==='qr' ? el.size : el.fontSize||12);
+        const x0=(k==='logo'||k==='qr')? el.x : el.x - w/2;
+        const y0=(k==='logo'||k==='qr')? el.y : el.y;
+        if(p.x>=x0 && p.x<=x0+w && p.y>=y0 && p.y<=y0+h){ dragging=true; key=k; offset={x:p.x-el.x,y:p.y-el.y}; canvas.style.cursor='grabbing'; return; }
+      }
+    });
+    window.addEventListener('mousemove', e=>{
+      if(!dragging||!key) return;
+      const p=getMouse(e);
+      const el = key==='logo'? logoElement : (key==='qr'? qrCodeElement : textElements[key]);
+      el.x = Math.max(0, Math.min(canvas.width  - (key==='logo'? el.width:0), p.x - offset.x));
+      el.y = Math.max(0, Math.min(canvas.height - (key==='logo'? el.height:0), p.y - offset.y));
+      setCoordInputsFromCanvas(key);
+      requestRedraw();
+    });
+    window.addEventListener('mouseup', ()=>{ dragging=false; key=null; canvas.style.cursor='grab'; });
+
+    ['dragenter','dragover'].forEach(evt =>
+      window.addEventListener(evt, e => { e.preventDefault(); e.dataTransfer.dropEffect='copy'; })
+    );
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const file = [...(e.dataTransfer?.files || [])].find(f => /^image\/(png|jpe?g)$/i.test(f.type));
+      if (file) acceptBgBlob(file, file.name);
+    });
+    window.addEventListener('paste', (e) => {
+      const item = [...(e.clipboardData?.items || [])].find(x => /^image\//.test(x.type));
+      if (item) acceptBgBlob(item.getAsFile(), 'pasted image');
+    });
+  }
+
+  function requestRedraw(){
+    if(isRendering) return;
+    isRendering=true;
+    requestAnimationFrame(()=>{ try{ updateFromInputs(); draw(); } finally { isRendering=false; } });
+  }
+  function draw(){
+    const dark = (document.documentElement.getAttribute('data-theme')==='dark');
+    ctx.fillStyle = dark ? '#121212' : '#FFFFFF';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.textBaseline='top';
+    if(bgImageLoaded) ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
+    if(logoImageLoaded && logoElement.width>0) ctx.drawImage(logoImage, logoElement.x, logoElement.y, logoElement.width, logoElement.height);
+
+    const color = dark?'#e0e0e0':'#212529';
+    Object.values(textElements).forEach(el=>{
+      const size=Number.isFinite(el.fontSize)? el.fontSize:12;
+      ctx.font=`${size}px '${el.font||'Montserrat'}'`; ctx.fillStyle=color;
+      const w=ctx.measureText(el.text||'').width;
+      ctx.fillText(el.text||'', el.x - w/2, el.y);
+    });
+
+    if(inputs.qrMode.value==='with_qr' && qrImage.src){
+      ctx.globalAlpha = qrCodeElement.alpha;
+      ctx.drawImage(qrImage, qrCodeElement.x, qrCodeElement.y, qrCodeElement.size, qrCodeElement.size);
+      ctx.globalAlpha = 1.0;
+    }
+  }
+  function ensureDate(){
+    try { if(!inputs.date.value) inputs.date.valueAsDate = new Date(); } catch {}
+    if (!inputs.date.value) {
+      const t = new Date();
+      inputs.date.value = new Date(t.getTime()-t.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    }
+    return inputs.date.value;
+  }
+  function updateFromInputs(){
+    const fsName  = num(inputs.fontSizeName.value)  || 100;
+    const fsOther = num(inputs.fontSizeOther.value) || 33;
+    const fsSerial= num(inputs.fontSizeSerial.value)|| 22;
+
+    textElements = {
+      name:{text:(inputs.name.value||'').normalize('NFC'), x:num(inputs.xName.value), y:num(inputs.yName.value), font:'Great Vibes', fontSize:fsName, draggable:true},
+      amount:{text:inputs.amount.value||'', x:num(inputs.xAmount.value), y:num(inputs.yAmount.value), font:'Montserrat', fontSize:fsOther, draggable:true},
+      date:{text:ensureDate(), x:num(inputs.xDate.value), y:num(inputs.yDate.value), font:'Montserrat', fontSize:fsOther, draggable:true},
+      type:{text:(inputs.type.value||'').normalize('NFC'), x:num(inputs.xType.value), y:num(inputs.yType.value), font:'Montserrat', fontSize:fsOther, draggable:true},
+      serial:{text:inputs.serial.value||'', x:num(inputs.xSerial.value), y:num(inputs.ySerial.value), font:'Montserrat', fontSize:fsSerial, draggable:true}
+    };
+    if(logoImageLoaded){
+      const w=num(inputs.wLogo.value);
+      const h = logoImage.height ? (logoImage.height * (w/Math.max(1,logoImage.width))) : 0;
+      logoElement = { x:num(inputs.xLogo.value), y:num(inputs.yLogo.value), width:w, height:h, draggable:true };
+    } else {
+      logoElement = { x:0,y:0,width:0,draggable:false };
+    }
+    qrCodeElement = {
+      x:num(inputs.xQr.value), y:num(inputs.yQr.value), alpha:clamp01(parseFloat(inputs.alphaQr.value||'0.8')), size:150, draggable: inputs.qrMode.value==='with_qr'
+    };
+    buildQR();
+  }
+
+  function resetAllPositions(){
+    const d={ fontSizeName:100, xName:705.6404, yName:1005.7899, fontSizeOther:33, xAmount:359.1387, yAmount:1531.1968, xDate:1068.8586, yDate:1527.7868, xType:359.1387, yType:1676.0735, fontSizeSerial:22, xSerial:516.0143, ySerial:1943.9245, xLogo:50, yLogo:50, wLogo:200 };
+    Object.entries(d).forEach(([k,v])=>{ if(inputs[k]) inputs[k].value=v; });
+    resetQr();
+    requestRedraw();
+  }
+  function resetQr(){
+    const m=50,s=150;
+    inputs.xQr.value = String(Math.max(0,canvas.width - s - m));
+    inputs.yQr.value = String(Math.max(0,canvas.height - s - m));
+    inputs.alphaQr.value = '0.8';
+    requestRedraw();
+  }
+  function getMouse(e){
+    const r=canvas.getBoundingClientRect();
+    return { x:(e.clientX-r.left)*(canvas.width/r.width), y:(e.clientY-r.top)*(canvas.height/r.height) };
+  }
+  function setCoordInputsFromCanvas(key){
+    const el = key==='logo'? logoElement : (key==='qr'? qrCodeElement : textElements[key]);
+    const set=(idStr,val)=>{ const n=document.getElementById(`input-${idStr}`); if(n) n.value = typeof val==='number'? val.toFixed(4):val; };
+    set(`x-${key.toLowerCase()}`, el.x); set(`y-${key.toLowerCase()}`, el.y);
+  }
+  function onBgUpload(ev){
+    const f=ev.target.files?.[0]; if(!f) return;
+    if(!/^image\/(png|jpeg)$/i.test(f.type)){ showError('Invalid Image','Please upload PNG or JPEG.'); return; }
+    acceptBgBlob(f, f.name);
+  }
+  function acceptBgBlob(blob, label='image'){
+    const url = URL.createObjectURL(blob);
+    bgImage.onload=()=>{ bgImageLoaded=true; id('bg-image-status').textContent=`✅ ${label} loaded`; setupCanvas(bgImage.naturalWidth||canvas.width,bgImage.naturalHeight||canvas.height); URL.revokeObjectURL(url); };
+    bgImage.onerror=()=>{ showError('Image Load Error',`Failed to load ${label}.`); URL.revokeObjectURL(url); };
+    bgImage.src=url;
+  }
+  function onLogoUpload(ev){
+    const f=ev.target.files?.[0]; if(!f) return;
+    if(!/^image\/(png|jpeg)$/i.test(f.type)){ showError('Invalid Logo','Please upload PNG or JPEG.'); return; }
+    const r=new FileReader();
+    r.onload=e=>{
+      logoImage.onload=()=>{ logoImageLoaded=true; requestRedraw(); };
+      logoImage.onerror=()=> showError('Logo Load Error','Failed to load selected logo.');
+      logoImage.src=e.target.result;
+    };
+    r.readAsDataURL(f);
+  }
+
+  function generateNewSerial(){ inputs.serial.value=`SN-${Date.now()}-${Math.random().toString(36).slice(2,11).toUpperCase()}`; requestRedraw(); }
+  window.centerElement=(key)=>{ const t=`x${key.charAt(0).toUpperCase()+key.slice(1)}`; if(inputs[t]){ inputs[t].value=(canvas.width/2).toFixed(4); requestRedraw(); } }
+  function fitCanvasToView(){
+    const area=id('preview-area'), frame=id('preview-frame');
+    const s=Math.min((area.clientHeight-60)/Math.max(1,frame.offsetHeight),(area.clientWidth-60)/Math.max(1,frame.offsetWidth),1);
+    zoomLevel=s; updateZoom(0);
+  }
+  function updateZoom(d){ zoomLevel=Math.max(.1,Math.min(3,zoomLevel+d)); id('preview-frame').style.transform=`scale(${zoomLevel})`; id('zoom-level').textContent=`${Math.round(zoomLevel*100)}%`; }
+
+  function handleUrlParams(){
+    const p=new URLSearchParams(location.search);
+    const encoded=p.get('verify');
+    autoGenParam = p.get('autogen') === '1';
+    if(!encoded) return;
+    try{
+      const dec=atob(encoded.replace(/-/g,'+').replace(/_/g,'/'));
+      const qrData=safeJson(dec)||{};
+      showTab('verify');
+      const q=id('quick-scan-info'); q.style.display='block';
+      q.innerHTML=`<h4>Quick Scan Information</h4>
+        <p><strong>Serial:</strong> ${qrData.s||'N/A'}</p>
+        <p><strong>Name:</strong> ${qrData.n||'N/A'}</p>
+        <p><strong>Amount:</strong> ${qrData.a||'N/A'}</p>
+        <p><strong>Date:</strong> ${qrData.d||'N/A'}</p>
+        <p><strong>Type:</strong> ${qrData.t||'N/A'}</p>
+        <p><em>Upload the corresponding PDF for full cryptographic verification.</em></p>`;
+      id('verify-prompt').textContent=`Ready to verify serial: ${qrData.s||'N/A'}.`;
+    }catch{ showError('Invalid QR Code Link','Verification link is corrupted or invalid.'); }
+  }
+  function maybeAutoGen(){
+    if(autoGenParam){
+      setTimeout(()=>{ exportPdf(); }, 50);
+    }
+  }
+  function buildQR(){
+    try{
+      if(inputs.qrMode.value!=='with_qr'){ qrImage.src=''; return; }
+      const d = ensureDate();
+      const qrData={ s:inputs.serial.value, n:inputs.name.value, a:inputs.amount.value, d, t:inputs.type.value };
+      const b64=btoa(JSON.stringify(qrData)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+      const url=`https://nomsams.github.io/carbonara/?verify=${b64}`;
+      const qri=new QRious({ value:url, size:512 });
+      qrImage = new Image(); qrImage.src = qri.toDataURL();
+    }catch{ qrImage.src=''; }
+  }
+
+  /* ---------- Crypto ---------- */
+  const masterKeySalt="CarbonCertSaltV1", pbkdf2Iterations=100000;
+  async function reconstructMasterKey(){
+    const fragments=['fragA','fragB','fragC','fragD'];
+    const concatenated=fragments.join('')+'a-very-secret-pepper';
+    const base=await crypto.subtle.importKey('raw', new TextEncoder().encode(concatenated), {name:'PBDF2'}, false, ['deriveKey']);
+    return await crypto.subtle.deriveKey(
+      {name:'PBDF2',salt:new TextEncoder().encode(masterKeySalt),iterations:pbkdf2Iterations,hash:'SHA-256'},
+      base, {name:'HMAC',hash:'SHA-256',length:256}, true, ['sign','verify']
+    );
+  }
+  function canonicalString(p){
+    return [
+      `v:${p.v}`,`serial:${p.serial}`,`name:${p.name}`,`amount:${p.amount}`,`date:${p.date}`,`type:${p.type}`,
+      `imageHashOriginal:${p.imageHashOriginal}`,`imageHashWatermarked:${p.imageHashWatermarked}`,`imageHashRGB:${p.imageHashRGB}`,`imageHashAttachment:${p.imageHashAttachment||''}`,
+      `posName:${p.posName.x},${p.posName.y}`,`posAmount:${p.posAmount.x},${p.posAmount.y}`,
+      `posDate:${p.posDate.x},${p.posDate.y}`,`posType:${p.posType.x},${p.posType.y}`,
+      `posSerial:${p.posSerial.x},${p.posSerial.y}`,`posLogo:${p.posLogo.x},${p.posLogo.y},${p.posLogo.w}`,
+      `fontName:${p.fontName}`,`fontOther:${p.fontOther}`,`fontSerial:${p.fontSerial}`,
+      `qrMode:${p.qrMode}`,`qrPos:${p.qrPos.x},${p.qrPos.y}`,`qrAlpha:${p.qrAlpha}`,
+      `canvas:${p.canvas}`,`app:${p.app}`
+    ].join('|');
+  }
+  async function tagFor(canon){ const key=await reconstructMasterKey(); const data=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canon)); const sig=await crypto.subtle.sign('HMAC',key,data); return btoa(String.fromCharCode(...new Uint8Array(sig))); }
+
+  /* ---------- Export (with progress modal) ---------- */
+  async function exportPdf(){
+    const modal=id('progress-modal'), status=id('progress-status'), bar=id('progress-bar-inner');
+    modal.style.display='flex';
+    const step=(m,p)=>{ status.textContent=m; bar.style.width=p; };
+
+    try{
+      step('Step 1/12: Drawing base…','6%'); await delay(5);
+
+      async function decodeAndHashPngBytes(u8){
+        const blob = new Blob([u8], { type:'image/png' });
+        const bmp = await createImageBitmap(blob);
+        const oc = new OffscreenCanvas(bmp.width, bmp.height);
+        const ox = oc.getContext('2d', { willReadFrequently:true, alpha:false, colorSpace:'srgb' });
+        ox.drawImage(bmp, 0, 0);
+        const d = ox.getImageData(0,0,oc.width,oc.height).data;
+        const decRGBA = await sha256(d);
+        const decRGB  = await hashRGBOnly(d);
+        bmp.close();
+        return { decRGBA, decRGB };
+      }
+
+      async function generateFinalImageAndHashes(embedStr, useV2){
+        const c = document.createElement('canvas');
+        c.width = canvas.width; c.height = canvas.height;
+        const cx = c.getContext('2d', { willReadFrequently: true, alpha: false, colorSpace: 'srgb' });
+
+        cx.fillStyle = '#FFFFFF';
+        cx.fillRect(0, 0, c.width, c.height);
+        
+        cx.textBaseline = 'top';
+        if (bgImageLoaded) cx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        if (logoImageLoaded && logoElement.width > 0) cx.drawImage(logoImage, logoElement.x, logoElement.y, logoElement.width, logoElement.height);
+        
+        Object.values(textElements).forEach(el => {
+            const size = Number.isFinite(el.fontSize) ? el.fontSize : 12;
+            cx.font = `${size}px '${el.font || 'Montserrat'}'`;
+            const w = cx.measureText(el.text || '').width;
+            cx.fillStyle = '#000';
+            cx.fillText(el.text || '', el.x - w / 2, el.y);
+        });
+
+        if (inputs.qrMode.value === 'with_qr' && qrImage.src) {
+            cx.globalAlpha = 1.0; 
+            cx.drawImage(qrImage, qrCodeElement.x, qrCodeElement.y, qrCodeElement.size, qrCodeElement.size);
+        }
+
+        if (embedStr) {
+            if (useV2) embedLSBv2(cx, embedStr); else embedLSBv1(cx, embedStr);
+        }
+
+        const preEncodePixels = cx.getImageData(0, 0, c.width, c.height).data;
+        const rgbaHash = await sha256(preEncodePixels);
+
+        const dataURL = c.toDataURL('image/png');
+        const bytes = dataURLtoU8(dataURL);
+
+        const { decRGBA, decRGB } = await decodeAndHashPngBytes(bytes);
+
+        return { bytes, rgbaHash, decRGBA, decRGB };
+      }
+
+      ensureDate();
+      updateFromInputs();
+
+      let payload = {
+        v:1,
+        serial:inputs.serial.value,
+        name:(inputs.name.value||'').normalize('NFC'),
+        amount:inputs.amount.value||'',
+        date:inputs.date.value||'',
+        type:(inputs.type.value||'').normalize('NFC'),
+        imageHashOriginal:'', imageHashWatermarked:'', imageHashRGB:'', imageHashAttachment:'',
+        posName:{x:Number(textElements.name.x).toFixed(4), y:Number(textElements.name.y).toFixed(4)},
+        posAmount:{x:Number(textElements.amount.x).toFixed(4), y:Number(textElements.amount.y).toFixed(4)},
+        posDate:{x:Number(textElements.date.x).toFixed(4), y:Number(textElements.date.y).toFixed(4)},
+        posType:{x:Number(textElements.type.x).toFixed(4), y:Number(textElements.type.y).toFixed(4)},
+        posSerial:{x:Number(textElements.serial.x).toFixed(4), y:Number(textElements.serial.y).toFixed(4)},
+        posLogo:{x:Number(logoElement.x||0).toFixed(4), y:Number(logoElement.y||0).toFixed(4), w:Number(logoElement.width||0).toFixed(4)},
+        fontName:`GreatVibes-${Number(textElements.name.fontSize||0)}px`,
+        fontOther:`Montserrat-${Number(textElements.amount.fontSize||0)}px`,
+        fontSerial:`Montserrat-${Number(textElements.serial.fontSize||0)}px`,
+        qrMode:inputs.qrMode.value, qrPos:{x:Number(qrCodeElement.x||0).toFixed(4), y:Number(qrCodeElement.y||0).toFixed(4)},
+        qrAlpha:Number(qrCodeElement.alpha||0).toFixed(2),
+        canvas:`${canvas.width}x${canvas.height}@${inputs.dpi.value}`,
+        app:'CarbonCert-5.0.0'
+      };
+
+      step('Step 2/12: Hashing original…','14%');
+      const A = await generateFinalImageAndHashes(null, true);
+      payload.imageHashOriginal = A.rgbaHash;
+
+      let canon = canonicalString({...payload, imageHashWatermarked:'0'.repeat(64), imageHashRGB:'0'.repeat(64), imageHashAttachment:''});
+      let tag = await tagFor(canon);
+
+      step('Step 3/12: Embedding ECC watermark…','24%');
+      const placeholderMsg = `TAG:${tag}||CCJSON:pending`;
+      const B = await generateFinalImageAndHashes(placeholderMsg, true);
+      payload.imageHashWatermarked = B.decRGBA;
+      payload.imageHashRGB = B.decRGB;
+      payload.imageHashAttachment = await sha256(B.bytes);
+
+      canon = canonicalString(payload);
+      tag = await tagFor(canon);
+
+      step('Step 4/12: Finalizing watermark…','34%');
+      const fullJson = JSON.stringify({...payload, tag_b64:tag});
+      const fullB64 = u8ToB64(new TextEncoder().encode(fullJson));
+      const Cmsg = `TAG:${tag}||CCJSON:${fullB64}`;
+      const C = await generateFinalImageAndHashes(Cmsg, true);
+
+      payload.imageHashWatermarked = C.decRGBA;
+      payload.imageHashRGB = C.decRGB;
+      payload.imageHashAttachment = await sha256(C.bytes);
+      const finalTag = await tagFor(canonicalString(payload));
+      const finalPayload = {...payload, tag_b64: finalTag};
+      const finalJsonBytes = new TextEncoder().encode(JSON.stringify(finalPayload));
+      const finalPngBytes = C.bytes;
+
+      step('Step 5/12: Building PDF page…','44%');
+      const { PDFDocument, PDFName, PDFString } = window.PDFLib;
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage([canvas.width, canvas.height]);
+      const pngImg = await pdfDoc.embedPng(finalPngBytes);
+      page.drawImage(pngImg,{x:0,y:0,width:canvas.width,height:canvas.height});
+
+      step('Step 6/12: Embedding attachments…','54%');
+      try{
+        await pdfDoc.attach(finalPngBytes, `CarbonAra-${payload.serial}.png`, {
+          mimeType:'image/png', description:'Raster used to compose this document', createDate:new Date(), modificationDate:new Date()
+        });
+      }catch(e){ console.warn('attach(png) failed', e); }
+      try{
+        await pdfDoc.attach(finalJsonBytes, `carboncert-${payload.serial}.json`, {
+          mimeType:'application/json', description:'CarbonAra certificate payload', createDate:new Date(), modificationDate:new Date()
+        });
+      }catch(e){ console.warn('attach(json) failed', e); }
+
+      step('Step 7/12: Embedding FileAttachment annotation…','64%');
+      try{
+        const ctx = pdfDoc.context;
+        const efPng = ctx.stream(finalPngBytes, { Type: PDFLib.PDFName.of('EmbeddedFile'), Subtype: PDFLib.PDFName.of('image#2Fpng') });
+        const efPngRef = ctx.register(efPng);
+        const fsPng = ctx.obj({ Type: PDFLib.PDFName.of('Filespec'),
+          F: PDFLib.PDFString.of(`CarbonAra-${payload.serial}.png`),
+          UF: PDFLib.PDFString.of(`CarbonAra-${payload.serial}.png`),
+          EF: ctx.obj({ F: efPngRef })
+        });
+        const fsPngRef = ctx.register(fsPng);
+
+        const efJson = ctx.stream(finalJsonBytes, { Type: PDFLib.PDFName.of('EmbeddedFile'), Subtype: PDFLib.PDFName.of('application#2Fjson') });
+        const efJsonRef = ctx.register(efJson);
+        const fsJson = ctx.obj({ Type: PDFLib.PDFName.of('Filespec'),
+          F: PDFLib.PDFString.of(`carboncert-${payload.serial}.json`),
+          UF: PDFLib.PDFString.of(`carboncert-${payload.serial}.json`),
+          EF: ctx.obj({ F: efJsonRef })
+        });
+        const fsJsonRef = ctx.register(fsJson);
+
+        pdfDoc.catalog.set(PDFLib.PDFName.of('AF'), ctx.obj([ fsJsonRef, fsPngRef ]));
+
+        const rect = [10, 10, 22, 22];
+        const annotDict = ctx.obj({
+          Type: PDFLib.PDFName.of('Annot'), Subtype: PDFLib.PDFName.of('FileAttachment'),
+          Rect: ctx.obj(rect), FS: fsPngRef, Name: PDFLib.PDFName.of('PushPin'), C: ctx.obj([1,1,0])
+        });
+        const annotRef = ctx.register(annotDict);
+        const annots = page.node.Annots();
+        if (annots) { annots.push(annotRef); } else { page.node.set(PDFLib.PDFName.of('Annots'), ctx.obj([annotRef])); }
+      }catch(e){ console.warn('file attachment annotation failed', e); }
+
+      step('Step 8/12: Metadata…','74%');
+      pdfDoc.setProducer('CarbonAra');
+      pdfDoc.setCreator('CarbonAra:PNG@PDF');
+      try{ pdfDoc.setTitle(`CarbonAra ${payload.serial} | carboncert,${u8ToB64(finalJsonBytes)}`);}catch{}
+      let kwOK=false;
+      try{ pdfDoc.setKeywords(['carboncert', u8ToB64(finalJsonBytes)]); kwOK=true; }catch{}
+      if(!kwOK){
+        try{ pdfDoc.setSubject(`carboncert,${u8ToB64(finalJsonBytes)}`);}catch{}
+        try{ pdfDoc.setAuthor(`carboncert:${u8ToB64(finalJsonBytes)}`);}catch{}
+      }
+
+      step('Step 9/12: Save…','84%');
+      const pdfBytes = await pdfDoc.save({ useObjectStreams:false });
+
+      step('Step 10/12: Download…','94%');
+      download(pdfBytes, `CarbonCert-${payload.serial}.pdf`, 'application/pdf');
+
+      step('Done','100%'); setTimeout(()=> modal.style.display='none', 500);
+    }catch(e){
+      showError('PDF Generation Failed', e?.stack||e?.message||String(e));
+      id('progress-modal').style.display='none';
+    }
+  }
+
+  function download(data, filename, type){
+    try{
+      const blob=new Blob([data],{type});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
+    }catch(e){ showError('Download Error', e?.stack||String(e)); }
+  }
+
+  /* ---------- VERIFICATION ---------- */
+
+  function startVerification(ev){
+    const file=ev.target.files?.[0]; if(!file) return;
+    showVerifyLoadingUI();
+    stopExistingWorker();
+
+    verifyWorker = createVerifierWorker();
+    verifyStartTs = performance.now();
+    startElapsedTimer();
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      verifyWorker.postMessage({ type:'start', pdfBytes: reader.result }, [reader.result]);
+    };
+    reader.readAsArrayBuffer(file);
+
+    verifyWorker.onmessage = async (e) => {
+      const msg = e.data || {};
+      if(msg.type === 'progress'){
+        setVerifyProgress(msg.msg, msg.pct, msg.stepKey);
+      } else if(msg.type === 'log'){
+        appendDiag(msg.line);
+      } else if(msg.type === 'result'){
+        stopElapsedTimer();
+        showVerifyResult(msg.result, msg.payload);
+        hideVerifyLoadingUI();
+        stopExistingWorker();
+      } else if(msg.type === 'error'){
+        stopElapsedTimer();
+        appendDiag('CRITICAL ERROR: '+ (msg.message||'Unknown error'));
+        showVerifyResult({status:'LOW',crypto:'FAIL',attachment:'FAIL',water:'FAIL',pixel:'FAIL',error:msg.message||'Unknown error'},{});
+        hideVerifyLoadingUI();
+        stopExistingWorker();
+      } else if(msg.type === 'need-pixel-scan'){
+        try {
+          const blob = new Blob([msg.bytes], {type: msg.mime});
+          const bmp = await createImageBitmap(blob);
+          const c = document.createElement('canvas');
+          c.width = bmp.width; c.height = bmp.height;
+          const cx = c.getContext('2d', {willReadFrequently:true, alpha: false, colorSpace: 'srgb'});
+          cx.drawImage(bmp,0,0);
+          const d = cx.getImageData(0,0,c.width,c.height).data;
+          const rgbaHash = await sha256(d);
+          const rgbHash = await hashRGBOnly(d);
+          let v2OK = false;
+          const v2 = extractLSBv2(cx);
+          if(v2.ok && /CCJSON:/.test(v2.message)) v2OK = true;
+          else { const v1 = extractLSBv1(cx); if(v1 && /CCJSON:/.test(v1)) v2OK = true; }
+          verifyWorker.postMessage({ type:'pixel-scan-result', id:msg.id, rgbaHash, rgbHash, v2OK });
+        } catch(err) {
+          verifyWorker.postMessage({ type:'pixel-scan-result', id:msg.id, error: err.message });
+        }
+      }
+    };
+
+    verifyWorker.onerror = (err) => {
+      stopElapsedTimer();
+      appendDiag('WORKER ERROR: ' + (err.message||String(err)));
+      showVerifyResult({status:'LOW',crypto:'FAIL',attachment:'FAIL',water:'FAIL',pixel:'FAIL',error:err.message||String(err)},{});
+      hideVerifyLoadingUI();
+      stopExistingWorker();
+    };
+  }
+
+  function cancelVerification(){
+    appendDiag('Verification cancelled by user.');
+    stopExistingWorker();
+    stopElapsedTimer();
+    id('verify-loading').classList.remove('active');
+    id('verify-idle').classList.add('active');
+  }
+
+  function stopExistingWorker(){
+    if(verifyWorker){ try{ verifyWorker.terminate(); }catch{} verifyWorker=null; }
+  }
+
+  function appendDiag(m){
+    const diag=id('diagnostics');
+    diag.textContent += `[${new Date().toLocaleTimeString()}] ${m}\n`;
+    diag.scrollTop = diag.scrollHeight;
+  }
+
+  function showVerifyLoadingUI(){
+    const vc=id('verify-container');
+    vc.querySelector('#verify-idle').classList.remove('active');
+    vc.querySelector('#verify-result').classList.remove('active');
+    vc.querySelector('#verify-loading').classList.add('active');
+    id('diagnostics').textContent = 'Starting verification...\n';
+    setVerifyProgress('Initializing…','0%','vstep-load');
+    resetSubsteps();
+    setSubstep('vstep-load','active');
+    id('verify-hint').innerHTML = 'This performs cryptographic + pixel checks and <strong>can take some time</strong> on large files.';
+  }
+  function hideVerifyLoadingUI(){
+    const vc=id('verify-container');
+    vc.querySelector('#verify-loading').classList.remove('active');
+    vc.querySelector('#verify-result').classList.add('active');
+  }
+  function setVerifyProgress(msg, pct, stepKey){
+    id('verify-progress-status').textContent = msg || '';
+    if(pct){ id('verify-progress-bar-inner').style.width = pct; }
+    if(stepKey){
+      setSubstep(stepKey, 'active');
+    }
+  }
+  function setSubstep(key, state) {
+      const order=['vstep-load','vstep-locate','vstep-sign','vstep-attach','vstep-pixels','vstep-final'];
+      const idx = order.indexOf(key);
+      order.forEach((k,i)=>{
+        const el=id(k);
+        el.classList.remove('active', 'done');
+        if(i < idx) el.classList.add('done');
+        else if(i === idx && state === 'active') el.classList.add('active');
+      });
+  }
+  function resetSubsteps(){
+    ['vstep-load','vstep-locate','vstep-sign','vstep-attach','vstep-pixels','vstep-final'].forEach(k=>{
+      const el=id(k); el.classList.remove('done','active');
+    });
+  }
+  function startElapsedTimer(){
+    const span=id('verify-elapsed-span');
+    verifyTimer = setInterval(()=>{
+      const dt = (performance.now()-verifyStartTs)/1000;
+      span.textContent = dt.toFixed(1)+'s';
+    }, 100);
+  }
+  function stopElapsedTimer(){
+    if(verifyTimer){ clearInterval(verifyTimer); verifyTimer=null; }
+  }
+
+  function createVerifierWorker(){
+    const code = `
+      try {
+        self.importScripts('https://unpkg.com/pdf-lib/dist/pdf-lib.min.js');
+      } catch (e) {
+        self.postMessage({ type: 'error', message: 'Failed to load critical library (pdf-lib). Please check your network connection and try again.' });
+        throw e;
+      }
+
+      const delay = ms => new Promise(r => setTimeout(r, ms));
+      const textDec = new TextDecoder();
+
+      function postProgress(msg,pct,stepKey){ self.postMessage({type:'progress', msg, pct, stepKey}); }
+      function log(line){ self.postMessage({type:'log', line}); }
+
+      async function sha256(input){
+        let ab;
+        if (input instanceof ArrayBuffer) { ab = input; }
+        else if (input && input.buffer instanceof ArrayBuffer) { ab = input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength); }
+        else { throw new Error('sha256: unsupported input type'); }
+        const h = await crypto.subtle.digest('SHA-256', ab);
+        return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      }
+      async function hashRGBOnly(rgba){
+        const rgb=new Uint8Array(Math.floor(rgba.length/4)*3);
+        for(let s=0,d=0;s<rgba.length;s+=4){ rgb[d++]=rgba[s]; rgb[d++]=rgba[s+1]; rgb[d++]=rgba[s+2]; }
+        return sha256(rgb);
+      }
+      function b64ToU8(b64){ const bin = atob(b64); const u8 = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; }
+      function safeJson(s){ try{ return JSON.parse(s); }catch{ return null; } }
+
+      const WM_V2 = { header:"CC2|", footer:"|END2", repeat:7, stride:3 };
+      function crc32(str){
+        let c = ~0, table = crc32.table;
+        if(!table){
+          table = crc32.table = new Uint32Array(256);
+          for(let n=0;n<256;n++){ let c2=n; for(let k=0;k<8;k++) c2=(c2&1)?(0xEDB88320^(c2>>>1)):(c2>>>1); table[n]=c2>>>0; }
+        }
+        for(let i=0;i<str.length;i++) c = table[(c^str.charCodeAt(i))&0xFF] ^ (c>>>8);
+        return (~c>>>0).toString(16).padStart(8,'0');
+      }
+      function toBitString(str){ return Array.from(str).map(ch=>ch.charCodeAt(0).toString(2).padStart(8,'0')).join(''); }
+      function fromBitString(bits){ const bytes=bits.match(/.{1,8}/g)||[]; return bytes.map(b=>String.fromCharCode(parseInt(b,2))).join(''); }
+      function extractLSBv2FromCtx(ctx2d){
+        const img = ctx2d.getImageData(0,0,ctx2d.canvas.width,ctx2d.canvas.height);
+        const d = img.data;
+        const bits = [];
+        for(let p=0; p<Math.floor(d.length/4/WM_V2.stride); p++){
+          const blue = d[(p*WM_V2.stride)*4 + 2];
+          bits.push(blue & 1 ? '1':'0');
+        }
+        const groups = Math.floor(bits.length / WM_V2.repeat);
+        let dec = '';
+        for(let g=0; g<groups; g++){
+          let ones=0;
+          for(let j=0;j<WM_V2.repeat;j++) if(bits[g*WM_V2.repeat + j]==='1') ones++;
+          dec += (ones > WM_V2.repeat/2) ? '1' : '0';
+        }
+        const raw = fromBitString(dec);
+        const sidx = raw.indexOf(WM_V2.header);
+        const eidx = raw.indexOf(WM_V2.footer, sidx>=0 ? sidx : 0);
+        if(sidx<0 || eidx<0) return { ok:false };
+        const inside = raw.slice(sidx + WM_V2.header.length, eidx);
+        const pipe = inside.lastIndexOf('|');
+        if(pipe<0) return { ok:false };
+        const msg = inside.slice(0, pipe);
+        const crc = inside.slice(pipe+1);
+        const ok = crc32(msg) === crc;
+        return { ok, message: msg, crc };
+      }
+      function extractLSBv1FromCtx(ctx2d){
+        const img=ctx2d.getImageData(0,0,ctx2d.canvas.width,ctx2d.canvas.height);
+        const d=img.data; let bits='';
+        for(let i=0;i<d.length;i+=4) bits+=(d[i+2]&1);
+        const bytes=bits.match(/.{1,8}/g)||[]; let s='';
+        for(const b of bytes){ if(b.length<8) continue; s+=String.fromCharCode(parseInt(b,2)); if(s.endsWith('::END::')) return s.slice(0,-7); }
+        return null;
+      }
+
+      const masterKeySalt="CarbonCertSaltV1", pbkdf2Iterations=100000;
+      async function reconstructMasterKey(){
+        const fragments=['fragA','fragB','fragC','fragD'];
+        const concatenated=fragments.join('')+'a-very-secret-pepper';
+        const base=await crypto.subtle.importKey('raw', new TextEncoder().encode(concatenated), {name:'PBDF2'}, false, ['deriveKey']);
+        return await crypto.subtle.deriveKey(
+          {name:'PBDF2',salt:new TextEncoder().encode(masterKeySalt),iterations:pbkdf2Iterations,hash:'SHA-256'},
+          base, {name:'HMAC',hash:'SHA-256',length:256}, true, ['sign','verify']
+        );
+      }
+      function canonicalString(p){
+        return [
+          \`v:\${p.v}\`,\`serial:\${p.serial}\`,\`name:\${p.name}\`,\`amount:\${p.amount}\`,\`date:\${p.date}\`,\`type:\${p.type}\`,
+          \`imageHashOriginal:\${p.imageHashOriginal}\`,\`imageHashWatermarked:\${p.imageHashWatermarked}\`,\`imageHashRGB:\${p.imageHashRGB}\`,\`imageHashAttachment:\${p.imageHashAttachment||''}\`,
+          \`posName:\${p.posName.x},\${p.posName.y}\`,\`posAmount:\${p.posAmount.x},\${p.posAmount.y}\`,
+          \`posDate:\${p.posDate.x},\${p.posDate.y}\`,\`posType:\${p.posType.x},\${p.posType.y}\`,
+          \`posSerial:\${p.posSerial.x},\${p.posSerial.y}\`,\`posLogo:\${p.posLogo.x},\${p.posLogo.y},\${p.posLogo.w}\`,
+          \`fontName:\${p.fontName}\`,\`fontOther:\${p.fontOther}\`,\`fontSerial:\${p.fontSerial}\`,
+          \`qrMode:\${p.qrMode}\`,\`qrPos:\${p.qrPos.x},\${p.qrPos.y}\`,\`qrAlpha:\${p.qrAlpha}\`,
+          \`canvas:\${p.canvas}\`,\`app:\${p.app}\`
+        ].join('|');
+      }
+      async function tagFor(canon){
+        const key=await reconstructMasterKey();
+        const data=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canon));
+        const sig=await crypto.subtle.sign('HMAC',key,data);
+        return btoa(String.fromCharCode(...new Uint8Array(sig)));
+      }
+
+      function getNum(dict, name){
+        try{
+          const x=dict.get(name); if(!x) return null;
+          const s=String(x).replace(/[^\\d.]/g,''); const n=Number(s); return Number.isFinite(n)?n:null;
+        }catch{ return null; }
+      }
+
+      const CAN_PIX = (typeof OffscreenCanvas!=='undefined' && typeof createImageBitmap !== 'undefined');
+      let pixelScanReqId = 0;
+      const pixelScanResolvers = {};
+
+      function requestMainThreadPixelScan(u8, mime){
+        return new Promise((resolve, reject) => {
+          const id = ++pixelScanReqId;
+          pixelScanResolvers[id] = { resolve, reject };
+          self.postMessage({ type:'need-pixel-scan', id, bytes:u8, mime }, [u8.buffer]);
+        });
+      }
+
+      async function pixelsAndWmFromImageBytes(u8, mime='image/png'){
+        if(!CAN_PIX){
+           try {
+             return await requestMainThreadPixelScan(u8, mime);
+           } catch(e) { return { skipped:true, error:e.message }; }
+        }
+        try{
+          const blob=new Blob([u8],{type:mime});
+          const bmp=await createImageBitmap(blob);
+          const c=new OffscreenCanvas(bmp.width, bmp.height);
+          const cx=c.getContext('2d',{willReadFrequently:true, alpha: false, colorSpace: 'srgb'});
+          cx.drawImage(bmp,0,0);
+          const d=cx.getImageData(0,0,c.width,c.height).data;
+          const rgbaHash=await sha256(d);
+          const rgbHash =await hashRGBOnly(d);
+          let v2OK=false;
+          const v2=extractLSBv2FromCtx(cx);
+          if(v2.ok && /CCJSON:/.test(v2.message)) v2OK=true; else { const v1=extractLSBv1FromCtx(cx); if(v1&&/CCJSON:/.test(v1)) v2OK=true; }
+          bmp.close();
+          return { rgbaHash, rgbHash, v2OK };
+        }catch(e){ return { skipped:true, error:e.message }; }
+      }
+
+      async function findJsonAttachmentAny(pdfDoc, serial){
+        const { PDFName, PDFDict, PDFRawStream, PDFStream } = PDFLib;
+        const target = serial ? \`carboncert-\${serial}.json\` : null;
+
+        const check = (filename, bytes) => {
+          if(!bytes) return null;
+          const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+          if(target && filename === target) return { match:true, u8 };
+          const head = textDec.decode(u8.slice(0,64));
+          if(head.trim().startsWith('{') || /"serial"|"tag_b64"/.test(head)) return { match:false, u8 };
+          return null;
+        };
+
+        let fallback = null;
+
+        try{
+          const af = pdfDoc.catalog.get(PDFName.of('AF'));
+          if(af){
+            const afArr = pdfDoc.context.lookup(af);
+            const arr = afArr?.array || [];
+            for(const fs of arr){
+              const fsDict = pdfDoc.context.lookup(fs, PDFDict);
+              const fn = fsDict?.get?.(PDFName.of('UF'))?.decodeText() || fsDict?.get?.(PDFName.of('F'))?.decodeText();
+              const ef = fsDict?.get?.(PDFName.of('EF'));
+              if(ef){
+                const efDict=pdfDoc.context.lookup(ef, PDFDict);
+                const streamRef=efDict?.get?.(PDFName.of('F'));
+                const stream=pdfDoc.context.lookup(streamRef);
+                if(stream && (stream instanceof PDFRawStream || stream instanceof PDFStream)){
+                  const res = check(fn, stream.getContents?.() || stream.contents);
+                  if(res?.match) return res.u8;
+                  if(res && !fallback) fallback = res.u8;
+                }
+              }
+            }
+          }
+        }catch{}
+
+        return fallback;
+      }
+
+      async function findImageAttachmentAny(pdfDoc, serial){
+        const { PDFName, PDFDict, PDFRawStream, PDFStream } = PDFLib;
+        const target = serial ? \`CarbonAra-\${serial}.png\` : null;
+        if (!target) return null;
+
+        const isImg = (u8) => (u8.length>=8 && u8[0]===0x89 && u8[1]===0x50 && u8[2]===0x4E && u8[3]===0x47) || (u8.length>=3 && u8[0]===0xFF && u8[1]===0xD8 && u8[2]===0xFF);
+
+        try{
+          const af = pdfDoc.catalog.get(PDFName.of('AF'));
+          if(af){
+            const afArr = pdfDoc.context.lookup(af);
+            const arr = afArr?.array || [];
+            for(const fs of arr){
+              const fsDict = pdfDoc.context.lookup(fs, PDFDict);
+              const fn = fsDict?.get?.(PDFName.of('UF'))?.decodeText() || fsDict?.get?.(PDFName.of('F'))?.decodeText();
+              if(fn === target){
+                const ef = fsDict?.get?.(PDFName.of('EF'));
+                if(ef){
+                  const efDict=pdfDoc.context.lookup(ef, PDFDict);
+                  const streamRef=efDict?.get?.(PDFName.of('F'));
+                  const stream=pdfDoc.context.lookup(streamRef);
+                  if(stream && (stream instanceof PDFRawStream || stream instanceof PDFStream)){
+                    const bytes = stream.getContents?.() || stream.contents;
+                    if(bytes){
+                      const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+                      if(isImg(u8)) return u8;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }catch{}
+        return null;
+      }
+
+      async function extractFirstImageWithPdfLib(pdfDoc){
+        const { PDFName, PDFDict, PDFRawStream, PDFStream } = PDFLib;
+        const pages = pdfDoc.getPages();
+        if (!pages.length) return null;
+
+        const page = pages[0];
+        try {
+            const resources = page.node.Resources?.();
+            if (resources) {
+                const xobjects = resources.lookup(PDFName.of('XObject'), PDFDict);
+                if (xobjects) {
+                    const keys = xobjects.keys();
+                    for (const key of keys) {
+                        let stream = xobjects.lookup(key);
+                        if (stream.tag) {
+                            stream = pdfDoc.context.lookup(stream);
+                        }
+                        
+                        if (stream instanceof PDFRawStream || stream instanceof PDFStream) {
+                            if (stream.dict.get(PDFName.of('Subtype')) === PDFName.of('Image')) {
+                                const bytes = stream.getContents?.() || stream.contents;
+                                const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+
+                                if (u8.length > 8 && u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4E && u8[3] === 0x47) {
+                                    return { kind: 'png-bytes', bytes: u8 };
+                                }
+
+                                const width = getNum(stream.dict, PDFName.of('Width'));
+                                const height = getNum(stream.dict, PDFName.of('Height'));
+                                const bpc = getNum(stream.dict, PDFName.of('BitsPerComponent')) || 8;
+                                const cs = stream.dict.get(PDFName.of('ColorSpace'));
+                                let comps = 3;
+                                if (cs === PDFName.of('DeviceGray')) comps = 1;
+                                else if (cs === PDFName.of('DeviceCMYK')) comps = 4;
+                                
+                                return { kind: 'raw-pixels', width, height, bpc, comps, bytes: u8 };
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            log('Error scanning page XObjects: ' + (e.message || e));
+        }
+        return null;
+      }
+
+      self.onmessage = async (e)=>{
+        const msg = e.data || {};
+        if(msg.type === 'pixel-scan-result'){
+           if(pixelScanResolvers[msg.id]){
+             if(msg.error) pixelScanResolvers[msg.id].reject(new Error(msg.error));
+             else pixelScanResolvers[msg.id].resolve(msg);
+             delete pixelScanResolvers[msg.id];
+           }
+           return;
+        }
+        if(msg.type !== 'start') return;
+
+        try{
+          postProgress('Loading PDF…','8%','vstep-load'); await delay(0);
+          const pdfBytes = e.data.pdfBytes;
+          const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes,{ ignoreEncryption:true, throwOnInvalidObject:false });
+          log('PDF document loaded successfully.');
+
+          postProgress('Locating embedded payload…','18%','vstep-locate'); await delay(0);
+          let payload=null, foundVia='none';
+
+          try{
+            const jsonBytes = await findJsonAttachmentAny(pdfDoc, null);
+            if(jsonBytes){
+              const obj = safeJson(textDec.decode(jsonBytes));
+              if(obj){ payload=obj; foundVia='attachment-json'; }
+            }
+          }catch{}
+
+          if(!payload){
+            const preliminaryImage = await extractFirstImageWithPdfLib(pdfDoc);
+            if(preliminaryImage?.kind === 'png-bytes'){
+              const R = await pixelsAndWmFromImageBytes(preliminaryImage.bytes, 'image/png');
+              if(R.v2OK){
+                const m = R.message;
+                const b64 = (m.match(/CCJSON:([A-Za-z0-9+/=]+)/)||[])[1];
+                if(b64){
+                  const obj = safeJson(textDec.decode(b64ToU8(b64)));
+                  if(obj){ payload=obj; foundVia='lsb-watermark'; }
+                }
+              }
+            }
+          }
+
+          if(!payload){
+             try{
+              const title = pdfDoc.getTitle?.();
+              if(typeof title==='string' && title.includes('carboncert,')){
+                const b64 = title.slice(title.indexOf('carboncert,') + 'carboncert,'.length).trim();
+                const obj = safeJson(textDec.decode(b64ToU8(b64)));
+                if(obj){ payload=obj; foundVia='title-hint'; }
+              }
+            }catch{}
+          }
+
+          if(!payload) throw new Error('No reliable CarbonAra payload found.');
+          log(\`Payload found via: \${foundVia} (Serial: \${payload.serial})\`);
+
+          postProgress('Validating cryptographic signature…','58%','vstep-sign'); await delay(0);
+          const expected = await tagFor(canonicalString(payload));
+          log(\`Expected Tag: \${expected.slice(0,16)}...\`);
+          log(\`Found Tag:    \${(payload.tag_b64 || '').slice(0,16)}...\`);
+          const cryptoOK = (payload.tag_b64 === expected);
+          log(\`Crypto check: \${cryptoOK?'PASS':'FAIL'}\`);
+
+          postProgress('Cross-checking embedded image & watermark…','70%','vstep-attach'); await delay(0);
+          let attachOK=false, pixelOK=false, watermarkOK=false;
+
+          let pngBytes = await findImageAttachmentAny(pdfDoc, payload.serial);
+          if(pngBytes){
+             log(\`Found attachment 'CarbonAra-\${payload.serial}.png'. Hashing...\`);
+             const attHash = await sha256(pngBytes);
+             log(\`Computed Attachment Hash:  \${attHash.slice(0,16)}...\`);
+             log(\`Expected Attachment Hash:  \${(payload.imageHashAttachment||'').slice(0,16)}...\`);
+             if(attHash === (payload.imageHashAttachment||'')) {
+                attachOK = true;
+                pixelOK = true;
+                log('Attachment hash: PASS. Assuming pixel integrity is OK.');
+             } else {
+                log('Attachment hash: FAIL');
+             }
+
+             const R = await pixelsAndWmFromImageBytes(pngBytes, 'image/png');
+             if(!R.skipped && !R.error){
+                if(!pixelOK && (R.rgbaHash===payload.imageHashWatermarked || R.rgbHash===payload.imageHashRGB)) {
+                    pixelOK=true;
+                    log('Decoded pixel hash: PASS');
+                }
+                if(R.v2OK) watermarkOK=true;
+                log(\`Attachment watermark check: \${watermarkOK ? 'PASS' : 'FAIL'}\`);
+                if (!pixelOK) {
+                    log(\`Decoded pixel hash: FAIL`);
+                    log(\`Computed RGBA Hash:        \${R.rgbaHash.slice(0,16)}...\`);
+                    log(\`Expected Watermarked Hash: \${(payload.imageHashWatermarked||'').slice(0,16)}...\`);
+                }
+             } else if(R.error) {
+                log('Pixel scan error on attachment: ' + R.error);
+             }
+          } else {
+             log('No matching PNG attachment found. Relying on page image fallback.');
+          }
+
+          if(!(pixelOK && watermarkOK)){
+            postProgress('Scanning page pixels (fallback)…','85%','vstep-pixels'); await delay(0);
+            const info = await extractFirstImageWithPdfLib(pdfDoc);
+            if(info && info.kind === 'png-bytes'){
+               log('Found PNG XObject on page. Analyzing as fallback...');
+               const R = await pixelsAndWmFromImageBytes(info.bytes, 'image/png');
+               if(!R.skipped && !R.error){
+                  if(!pixelOK && (R.rgbaHash===payload.imageHashWatermarked || R.rgbHash===payload.imageHashRGB)) pixelOK=true;
+                  if(!watermarkOK && R.v2OK) watermarkOK=true;
+                  log(\`XObject fallback pixel/watermark check: pixel=\${pixelOK}, water=\${watermarkOK}\`);
+               }
+            }
+          }
+
+          const result = {
+            crypto: cryptoOK ? 'OK':'FAIL',
+            attachment: attachOK ? 'OK':'FAIL',
+            water: watermarkOK ? 'OK':'FAIL',
+            pixel: pixelOK ? 'OK':'FAIL',
+            status:'LOW'
+          };
+          if(cryptoOK && (attachOK || (pixelOK && watermarkOK))) result.status='HIGH';
+          else if(cryptoOK) result.status='MEDIUM';
+
+          postProgress('Finalizing report…','100%','vstep-final'); await delay(0);
+          self.postMessage({ type:'result', result, payload });
+        }catch(e){
+          self.postMessage({ type:'error', message: e?.message || String(e) });
+        }
+      };
+    `;
+    const blob = new Blob([code], { type:'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    const w = new Worker(url);
+    setTimeout(()=> URL.revokeObjectURL(url), 10000);
+    return w;
+  }
+
+  function showVerifyResult(result, payload){
+    const head = id('auth-prob');
+    head.textContent = `Authenticity: ${result.status}`;
+    const cls = result.status==='HIGH'?'high':(result.status==='MEDIUM'?'medium':'low');
+    const details = id('result-card-details');
+    details.className = `result-card ${cls}`;
+    const icon = result.status==='HIGH'?'🟢': '🟡';
+
+    const getStatus = (key) => result[key] === 'OK' ? '🟢' : '🟡';
+
+    details.innerHTML = `
+      <h4>${icon} Verification ${result.status}</h4>
+      <ul class="verification-breakdown">
+        <li><span class="icon">${getStatus('crypto')}</span> Cryptographic Signature: <strong>${result.crypto==='OK'?'Valid':'Invalid'}</strong></li>
+        <li><span class="icon">${getStatus('attachment')}</span> Image Hash (Attachment): <strong>${result.attachment==='OK'?'Matched':'Mismatch'}</strong></li>
+        <li><span class="icon">${getStatus('water')}</span> Watermark Integrity: <strong>${result.water==='OK'?'Matched':'Mismatch/Absent'}</strong></li>
+        <li><span class="icon">${getStatus('pixel')}</span> Pixel Hash Consistency: <strong>${result.pixel==='OK'?'Matched':'Mismatch/Skipped'}</strong></li>
+      </ul>
+      ${payload.serial?`<p><strong>Serial:</strong> ${payload.serial}</p>`:''}
+      ${payload.name?`<p><strong>Name:</strong> ${payload.name}</p>`:''}
+      ${payload.date?`<p><strong>Date:</strong> ${payload.date}</p>`:''}
+      ${payload.type?`<p><strong>Type:</strong> ${payload.type}</p>`:''}
+      ${payload.amount?`<p><strong>Amount:</strong> ${payload.amount}</p>`:''}
+      ${result.error?`<p style="margin-top:1rem; color: var(--danger-color);"><strong>Error:</strong> ${result.error}</p>`:''}
+      <p class="verification-disclaimer">Just like with banknotes and other certificates - verification is not completely immune to tampering so trust with caution.</p>
+    `;
+  }
+
+  function showError(msg, details){
+    id('error-message').textContent=msg||'Unknown Error';
+    id('error-details').textContent=details||'';
+    id('error-modal').style.display='flex';
+  }
+
+  init();
+});
+</script>
 </body>
 </html>
