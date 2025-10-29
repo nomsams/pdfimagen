@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Visual Forensics Toolkit</title>
+    <title>PDF Forensics Engine</title>
     <style>
         :root {
             --bg-dark: #121212; --text-dark: #e0e0e0; --primary-dark: #0d8eff; --surface-dark: #1e1e1e; --border-dark: #333; --success-dark: #4caf50; --error-dark: #f44336;
@@ -20,6 +20,8 @@
         #gallery-pane { flex-grow: 1; overflow-y: auto; padding: 1.5rem; }
         #details-pane { width: 350px; background-color: var(--surface); border-left: 1px solid var(--border); padding: 1.5rem; overflow-y: auto; transition: width 0.3s, background-color 0.3s, padding 0.3s; flex-shrink: 0; }
         #details-pane.hidden { width: 0; padding: 0; border-left: none; }
+        #upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 1.5rem; transition: border-color 0.3s, background-color 0.3s; cursor: pointer; }
+        #upload-zone.dragover { border-color: var(--primary); background-color: rgba(13, 142, 255, 0.1); }
         .control-group { margin-bottom: 1.5rem; }
         .control-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; opacity: 0.8; }
         select, button { width: 100%; padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--bg); color: var(--text); font-size: 1rem; }
@@ -47,16 +49,15 @@
 </head>
 <body class="dark-mode">
     <aside id="sidebar">
-        <h2>Forensics Toolkit</h2>
-        <div class="control-group">
-            <button id="upload-btn">Select PDF</button>
+        <h2>Forensics Engine</h2>
+        <div id="upload-zone">
+            <p>Drag & Drop PDF here or click to select</p>
             <input type="file" id="file-input" accept="application/pdf">
         </div>
         <div id="progress-container" class="hidden">
             <div id="progress-bar"></div>
             <p id="progress-label">Initializing...</p>
         </div>
-        <hr style="border-color: var(--border); margin: 1rem 0;">
         <div class="control-group">
             <label for="filter-type">Filter by AI Type</label>
             <select id="filter-type"><option value="all">All Types</option></select>
@@ -69,7 +70,6 @@
                 <option value="similarity">Visual Similarity</option>
             </select>
         </div>
-        <hr style="border-color: var(--border); margin: 1rem 0;">
         <div class="control-group">
             <button id="export-json-btn" disabled>Export Data as JSON</button>
         </div>
@@ -80,20 +80,12 @@
     <main id="main-content">
         <div id="gallery-pane">
             <div id="welcome-message">
-                <h1>PDF Visual Forensics Toolkit</h1>
+                <h1>PDF Visual Forensics Engine</h1>
                 <p>Select a PDF to begin the automated analysis and extraction process.</p>
             </div>
             <div id="image-grid"></div>
         </div>
-        <aside id="details-pane" class="hidden">
-            <h3>Asset Inspector</h3>
-            <img id="details-preview" src="">
-            <div class="detail-item"><strong>AI Classification:</strong> <span id="details-type"></span></div>
-            <div class="detail-item"><strong>Page:</strong> <span id="details-page"></span> | <strong>Method:</strong> <span id="details-method"></span></div>
-            <div class="detail-item"><strong>Dimensions:</strong> <span id="details-dims"></span></div>
-            <div class="detail-item"><strong>Dominant Colors:</strong><div id="color-palette"></div></div>
-            <div class="detail-item"><strong>Recognized Text (OCR):</strong><div id="ocr-text"></div></div>
-        </aside>
+        <aside id="details-pane" class="hidden"></aside>
     </main>
     <script>
     const workerScript = `
@@ -158,61 +150,31 @@
             await postBlob(blob, pageNum, 'SVG', {width: Math.round(viewport.width), height: Math.round(viewport.height)});
         }
 
-        async function extractInlineImages(page, pageNum) {
-            const contentStream = await page.getContentStream();
-            const streams = contentStream.streams;
-            for (const stream of streams) {
-                const str = new TextDecoder().decode(stream.str);
-                let startIndex = str.indexOf('BI');
-                while (startIndex !== -1) {
-                    const endIndex = str.indexOf('EI', startIndex);
-                    if (endIndex === -1) break;
-                    // This is a highly simplified placeholder. Real parsing is extremely complex.
-                    startIndex = str.indexOf('BI', endIndex);
+        async function extractVectorPaths(page, pageNum) {
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = new OffscreenCanvas(viewport.width, viewport.height);
+            const context = canvas.getContext('2d');
+            const opList = await page.getOperatorList();
+            const pathOnlyOps = opList.fnArray.map((op, i) => {
+                if (op === pdfjsLib.OPS.paintImageXObject || op === pdfjsLib.OPS.showText) {
+                    return pdfjsLib.OPS.dependency;
                 }
+                return op;
+            });
+            const pathOpList = { fnArray: pathOnlyOps, argsArray: opList.argsArray };
+            await new pdfjsLib.CanvasGraphics(context, page.commonObjs, page.objs, null).execute(pathOpList);
+            if (!context.getImageData(0, 0, 1, 1).data.every(p => p === 0)) {
+                await postCanvas(canvas, pageNum, 'Vector Paths');
             }
         }
 
-        async function extractMaskedImages(page, pageNum) {
-            const opList = await page.getOperatorList();
-            for (let i = 0; i < opList.fnArray.length; i++) {
-                if (opList.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
-                    const imgName = opList.argsArray[i][0];
-                    const img = await new Promise(resolve => page.objs.get(imgName, data => resolve(data)));
-                    if (img && img.smask) {
-                        const smaskName = img.smask.name;
-                        if (!smaskName) continue;
-                        const mask = await new Promise(resolve => page.objs.get(smaskName, data => resolve(data)));
-                        if (!mask || !mask.data) continue;
-                        
-                        const canvas = new OffscreenCanvas(img.width, img.height);
-                        const ctx = canvas.getContext('2d');
-                        
-                        const imgCanvas = new OffscreenCanvas(img.width, img.height);
-                        const imgCtx = imgCanvas.getContext('2d');
-                        const imgData = imgCtx.createImageData(img.width, img.height);
-                        imgData.data.set(img.data);
-                        imgCtx.putImageData(imgData, 0, 0);
-
-                        const maskCanvas = new OffscreenCanvas(mask.width, mask.height);
-                        const maskCtx = maskCanvas.getContext('2d');
-                        const maskData = maskCtx.createImageData(mask.width, mask.height);
-                        const maskPixels = new Uint8ClampedArray(mask.width * mask.height * 4);
-                        for (let p = 0; p < mask.data.length; p++) {
-                            maskPixels[p*4] = mask.data[p];
-                            maskPixels[p*4+1] = mask.data[p];
-                            maskPixels[p*4+2] = mask.data[p];
-                            maskPixels[p*4+3] = 255;
-                        }
-                        maskData.data.set(maskPixels);
-                        maskCtx.putImageData(maskData, 0, 0);
-
-                        ctx.drawImage(maskCanvas, 0, 0, img.width, img.height);
-                        ctx.globalCompositeOperation = 'source-in';
-                        ctx.drawImage(imgCanvas, 0, 0);
-                        
-                        await postCanvas(canvas, pageNum, 'Masked');
-                    }
+        async function extractAnnotations(page, pageNum) {
+            const annotations = await page.getAnnotations();
+            for (const annotation of annotations) {
+                if (annotation.bitmapId) {
+                    const img = await new Promise(resolve => page.objs.get(annotation.bitmapId, data => resolve(data)));
+                    if (!img || !img.data) continue;
+                    await postAsset(img, pageNum, 'Annotation', \`\${pageNum}-\${annotation.id}\`);
                 }
             }
         }
@@ -254,7 +216,7 @@
                     const { data: { text: ocrText } } = await Tesseract.recognize(canvas, 'eng');
                     analysisData.ocrText = ocrText;
                 } else {
-                    analysisData.p_hash = 'svg_vector';
+                    analysisData.p_hash = 'svg_vector_' + Math.random();
                     analysisData.palette = ['#FFFFFF', '#000000'];
                     analysisData.ocrText = 'SVG (vector graphics)';
                 }
@@ -283,8 +245,8 @@
                     extractXObjects(page, i),
                     extractAsRender(page, i),
                     extractAsSVG(page, i),
-                    extractMaskedImages(page, i),
-                    extractInlineImages(page, i)
+                    extractVectorPaths(page, i),
+                    extractAnnotations(page, i)
                 ]);
                 self.postMessage({ type: 'progress', data: { message: \`Deconstructed page \${i}/\${numPages}\`, percent: 10 + (i / numPages) * 90 } });
             }
@@ -298,12 +260,12 @@
     `;
 
     document.addEventListener('DOMContentLoaded', () => {
-        let state = { assets: new Map(), selectedAssetId: null, filters: { type: 'all' }, sortBy: 'page' };
+        let state = { assets: new Map(), selectedAssetIds: new Set(), lastSelectedId: null, filters: { type: 'all' }, sortBy: 'page' };
         const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
         const worker = new Worker(URL.createObjectURL(workerBlob));
         
         const ui = {
-            uploadBtn: document.getElementById('upload-btn'),
+            uploadZone: document.getElementById('upload-zone'),
             fileInput: document.getElementById('file-input'),
             imageGrid: document.getElementById('image-grid'),
             detailsPane: document.getElementById('details-pane'),
@@ -325,16 +287,25 @@
             else if (type === 'error') { console.error('Worker Error:', data); updateProgress(100, \`Error: \${data}\`); }
         };
 
-        ui.uploadBtn.addEventListener('click', () => ui.fileInput.click());
-        ui.fileInput.addEventListener('change', handleFileSelect);
+        ui.uploadZone.addEventListener('click', () => ui.fileInput.click());
+        ui.uploadZone.addEventListener('dragover', e => { e.preventDefault(); ui.uploadZone.classList.add('dragover'); });
+        ui.uploadZone.addEventListener('dragleave', () => ui.uploadZone.classList.remove('dragover'));
+        ui.uploadZone.addEventListener('drop', handleFileDrop);
+        ui.fileInput.addEventListener('change', e => handleFileSelect(e.target.files));
         ui.filterType.addEventListener('change', (e) => { state.filters.type = e.target.value; renderGallery(); });
         ui.sortBy.addEventListener('change', (e) => { state.sortBy = e.target.value; renderGallery(); });
         ui.exportJsonBtn.addEventListener('click', exportDataAsJson);
         ui.downloadZipBtn.addEventListener('click', downloadSelectedAsZip);
 
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        function handleFileDrop(e) {
+            e.preventDefault();
+            ui.uploadZone.classList.remove('dragover');
+            handleFileSelect(e.dataTransfer.files);
+        }
+
+        function handleFileSelect(files) {
+            const file = files[0];
+            if (!file || file.type !== 'application/pdf') return;
             resetState();
             ui.welcomeMessage.classList.add('hidden');
             const fileReader = new FileReader();
@@ -343,7 +314,7 @@
         }
 
         function resetState() {
-            state = { assets: new Map(), selectedAssetId: null, filters: { type: 'all' }, sortBy: 'page' };
+            state = { assets: new Map(), selectedAssetIds: new Set(), lastSelectedId: null, filters: { type: 'all' }, sortBy: 'page' };
             ui.imageGrid.innerHTML = '';
             ui.detailsPane.classList.add('hidden');
             ui.exportJsonBtn.disabled = true;
@@ -367,7 +338,7 @@
             card.className = 'image-card';
             card.id = data.id;
             card.innerHTML = \`<img src="\${data.src}"><div class="spinner"></div>\`;
-            card.addEventListener('click', () => selectAsset(data.id));
+            card.addEventListener('click', (e) => handleAssetSelection(e, data.id));
             ui.imageGrid.appendChild(card);
         }
 
@@ -382,7 +353,7 @@
                 card.innerHTML += \`<div class="card-footer"><span>\${data.classification}</span><span>\${asset.method}</span></div>\`;
             }
             updateFilterOptions();
-            if (state.selectedAssetId === data.id) updateDetailsPane(asset);
+            if (state.selectedAssetIds.has(data.id)) updateDetailsPane();
         }
 
         function renderGallery() {
@@ -398,46 +369,53 @@
                 const card = document.createElement('div');
                 card.className = 'image-card';
                 card.id = asset.id;
-                if (asset.id === state.selectedAssetId) card.classList.add('selected');
+                if (state.selectedAssetIds.has(asset.id)) card.classList.add('selected');
                 let footer = asset.analysis ? \`<div class="card-footer"><span>\${asset.analysis.classification}</span><span>\${asset.method}</span></div>\` : '<div class="spinner"></div>';
                 card.innerHTML = \`<img src="\${asset.src}">\${footer}\`;
-                card.addEventListener('click', () => selectAsset(asset.id));
+                card.addEventListener('click', (e) => handleAssetSelection(e, asset.id));
                 ui.imageGrid.appendChild(card);
             });
         }
 
-        function selectAsset(id) {
-            state.selectedAssetId = id;
-            const asset = state.assets.get(id);
-            if (!asset) return;
+        function handleAssetSelection(event, id) {
+            if (event.ctrlKey || event.metaKey) {
+                state.selectedAssetIds.has(id) ? state.selectedAssetIds.delete(id) : state.selectedAssetIds.add(id);
+            } else {
+                state.selectedAssetIds.clear();
+                state.selectedAssetIds.add(id);
+            }
+            state.lastSelectedId = id;
             document.querySelectorAll('.image-card.selected').forEach(c => c.classList.remove('selected'));
-            document.getElementById(id)?.classList.add('selected');
-            ui.detailsPane.classList.remove('hidden');
-            ui.downloadZipBtn.disabled = false;
-            updateDetailsPane(asset);
+            state.selectedAssetIds.forEach(selId => document.getElementById(selId)?.classList.add('selected'));
+            updateDetailsPane();
         }
 
-        function updateDetailsPane(asset) {
-            document.getElementById('details-preview').src = asset.src;
-            document.getElementById('details-page').textContent = asset.page;
-            document.getElementById('details-method').textContent = asset.method;
-            document.getElementById('details-dims').textContent = \`\${asset.width} x \${asset.height}\`;
-            if (asset.analysis) {
-                document.getElementById('details-type').textContent = asset.analysis.classification;
-                document.getElementById('ocr-text').textContent = asset.analysis.ocrText || 'No text found.';
-                const paletteContainer = document.getElementById('color-palette');
-                paletteContainer.innerHTML = '';
-                (asset.analysis.palette || []).forEach(color => {
-                    const swatch = document.createElement('div');
-                    swatch.className = 'color-swatch';
-                    swatch.style.backgroundColor = color;
-                    paletteContainer.appendChild(swatch);
-                });
-            } else {
-                document.getElementById('details-type').textContent = 'Analyzing...';
-                document.getElementById('ocr-text').textContent = 'Analyzing...';
-                document.getElementById('color-palette').innerHTML = '';
+        function updateDetailsPane() {
+            ui.downloadZipBtn.disabled = state.selectedAssetIds.size === 0;
+            if (state.selectedAssetIds.size !== 1) {
+                ui.detailsPane.classList.add('hidden');
+                return;
             }
+            const asset = state.assets.get(state.lastSelectedId);
+            if (!asset) return;
+            
+            ui.detailsPane.innerHTML = \`
+                <h3>Asset Inspector</h3>
+                <img id="details-preview" src="\${asset.src}">
+                <div class="detail-item"><strong>AI Classification:</strong> <span id="details-type">\${asset.analysis?.classification || 'Analyzing...'}</span></div>
+                <div class="detail-item"><strong>Page:</strong> \${asset.page} | <strong>Method:</strong> \${asset.method}</div>
+                <div class="detail-item"><strong>Dimensions:</strong> \${asset.width} x \${asset.height}</div>
+                <div class="detail-item"><strong>Dominant Colors:</strong><div id="color-palette"></div></div>
+                <div class="detail-item"><strong>Recognized Text (OCR):</strong><div id="ocr-text">\${asset.analysis?.ocrText || 'Analyzing...'}</div></div>
+            \`;
+            const paletteContainer = ui.detailsPane.querySelector('#color-palette');
+            (asset.analysis?.palette || []).forEach(color => {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch';
+                swatch.style.backgroundColor = color;
+                paletteContainer.appendChild(swatch);
+            });
+            ui.detailsPane.classList.remove('hidden');
         }
 
         function updateFilterOptions() {
@@ -463,18 +441,21 @@
         }
 
         async function downloadSelectedAsZip() {
-            if (!state.selectedAssetId) return;
+            if (state.selectedAssetIds.size === 0) return;
             const JSZip = (await import('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')).default;
             const zip = new JSZip();
-            const asset = state.assets.get(state.selectedAssetId);
-            const response = await fetch(asset.src);
-            const blob = await response.blob();
-            const extension = asset.method === 'SVG' ? 'svg' : 'png';
-            zip.file(\`asset_\${asset.id}.\${extension}\`, blob);
+            for (const id of state.selectedAssetIds) {
+                const asset = state.assets.get(id);
+                if (!asset) continue;
+                const response = await fetch(asset.src);
+                const blob = await response.blob();
+                const extension = asset.method === 'SVG' ? 'svg' : 'png';
+                zip.file(\`p\${asset.page}_m\${asset.method}_\${asset.id}.\${extension}\`, blob);
+            }
             zip.generateAsync({ type: "blob" }).then(content => {
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(content);
-                link.download = "selected_asset.zip";
+                link.download = "selected_assets.zip";
                 link.click();
                 URL.revokeObjectURL(link.href);
             });
