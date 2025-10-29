@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Forensics Engine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
             --bg-dark: #121212; --text-dark: #e0e0e0; --primary-dark: #0d8eff; --surface-dark: #1e1e1e; --border-dark: #333; --success-dark: #4caf50; --error-dark: #f44336;
@@ -20,13 +25,13 @@
         #gallery-pane { flex-grow: 1; overflow-y: auto; padding: 1.5rem; }
         #details-pane { width: 350px; background-color: var(--surface); border-left: 1px solid var(--border); padding: 1.5rem; overflow-y: auto; transition: width 0.3s, background-color 0.3s, padding 0.3s; flex-shrink: 0; }
         #details-pane.hidden { width: 0; padding: 0; border-left: none; }
-        #upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 1.5rem; transition: border-color 0.3s, background-color 0.3s; cursor: pointer; }
+        #upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 1.5rem; transition: border-color 0.3s, background-color 0.3s; cursor: pointer; display: block; }
         #upload-zone.dragover { border-color: var(--primary); background-color: rgba(13, 142, 255, 0.1); }
         .control-group { margin-bottom: 1.5rem; }
         .control-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; opacity: 0.8; }
         select, button { width: 100%; padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--bg); color: var(--text); font-size: 1rem; }
         button { background-color: var(--primary); color: white; border: none; cursor: pointer; transition: opacity 0.2s; }
-        button:disabled { background-color: var(--border); cursor: not-allowed; opacity: 0.5; }
+        button:disabled, select:disabled { background-color: var(--border); cursor: not-allowed; opacity: 0.5; }
         #file-input { display: none; }
         #progress-container { margin-top: 1rem; }
         #progress-bar { width: 0%; height: 8px; background-color: var(--primary); border-radius: 4px; transition: width 0.2s ease-out; }
@@ -50,10 +55,10 @@
 <body class="dark-mode">
     <aside id="sidebar">
         <h2>Forensics Engine</h2>
-        <div id="upload-zone">
+        <label for="file-input" id="upload-zone">
             <p>Drag & Drop PDF here or click to select</p>
-            <input type="file" id="file-input" accept="application/pdf">
-        </div>
+        </label>
+        <input type="file" id="file-input" accept="application/pdf">
         <div id="progress-container" class="hidden">
             <div id="progress-bar"></div>
             <p id="progress-label">Initializing...</p>
@@ -277,6 +282,7 @@
             sortBy: document.getElementById('sort-by'),
             exportJsonBtn: document.getElementById('export-json-btn'),
             downloadZipBtn: document.getElementById('download-zip-btn'),
+            controls: [document.getElementById('filter-type'), document.getElementById('sort-by'), document.getElementById('export-json-btn'), document.getElementById('download-zip-btn')]
         };
 
         worker.onmessage = (e) => {
@@ -287,7 +293,6 @@
             else if (type === 'error') { console.error('Worker Error:', data); updateProgress(100, \`Error: \${data}\`); }
         };
 
-        ui.uploadZone.addEventListener('click', () => ui.fileInput.click());
         ui.uploadZone.addEventListener('dragover', e => { e.preventDefault(); ui.uploadZone.classList.add('dragover'); });
         ui.uploadZone.addEventListener('dragleave', () => ui.uploadZone.classList.remove('dragover'));
         ui.uploadZone.addEventListener('drop', handleFileDrop);
@@ -317,9 +322,12 @@
             state = { assets: new Map(), selectedAssetIds: new Set(), lastSelectedId: null, filters: { type: 'all' }, sortBy: 'page' };
             ui.imageGrid.innerHTML = '';
             ui.detailsPane.classList.add('hidden');
-            ui.exportJsonBtn.disabled = true;
-            ui.downloadZipBtn.disabled = true;
             ui.filterType.innerHTML = '<option value="all">All Types</option>';
+            setControlsEnabled(false);
+        }
+
+        function setControlsEnabled(isEnabled) {
+            ui.controls.forEach(control => control.disabled = !isEnabled);
         }
 
         function updateProgress(percent, message) {
@@ -328,7 +336,9 @@
             ui.progressLabel.textContent = message;
             if (percent >= 100) {
                 setTimeout(() => ui.progressContainer.classList.add('hidden'), 2000);
-                ui.exportJsonBtn.disabled = false;
+                setControlsEnabled(true);
+            } else {
+                setControlsEnabled(false);
             }
         }
 
@@ -392,10 +402,17 @@
 
         function updateDetailsPane() {
             ui.downloadZipBtn.disabled = state.selectedAssetIds.size === 0;
-            if (state.selectedAssetIds.size !== 1) {
+            if (state.selectedAssetIds.size === 0) {
                 ui.detailsPane.classList.add('hidden');
                 return;
             }
+            
+            if (state.selectedAssetIds.size > 1) {
+                ui.detailsPane.innerHTML = \`<h3>\${state.selectedAssetIds.size} Assets Selected</h3>\`;
+                ui.detailsPane.classList.remove('hidden');
+                return;
+            }
+
             const asset = state.assets.get(state.lastSelectedId);
             if (!asset) return;
             
@@ -442,7 +459,6 @@
 
         async function downloadSelectedAsZip() {
             if (state.selectedAssetIds.size === 0) return;
-            const JSZip = (await import('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')).default;
             const zip = new JSZip();
             for (const id of state.selectedAssetIds) {
                 const asset = state.assets.get(id);
