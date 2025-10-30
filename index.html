@@ -27,6 +27,7 @@
         #details-pane.hidden { width: 0; padding: 0; border-left: none; }
         #upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 1.5rem; transition: border-color 0.3s, background-color 0.3s; cursor: pointer; display: block; }
         #upload-zone.dragover { border-color: var(--primary); background-color: rgba(13, 142, 255, 0.1); }
+        #upload-zone.processing { cursor: not-allowed; background-color: var(--border); }
         .control-group { margin-bottom: 1.5rem; }
         .control-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; opacity: 0.8; }
         select, button { width: 100%; padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--bg); color: var(--text); font-size: 1rem; }
@@ -56,7 +57,7 @@
     <aside id="sidebar">
         <h2>Forensics Engine</h2>
         <label for="file-input" id="upload-zone">
-            <p>Drag & Drop PDF here or click to select</p>
+            <p id="upload-text">Drag & Drop PDF here or click to select</p>
         </label>
         <input type="file" id="file-input" accept="application/pdf">
         <div id="progress-container" class="hidden">
@@ -92,14 +93,18 @@
         </div>
         <aside id="details-pane" class="hidden"></aside>
     </main>
-    <script>
-    const workerScript = `
-        self.importScripts(
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js',
-            'https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js',
-            'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js',
-            'https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js'
-        );
+
+    <script id="worker-script" type="javascript/worker">
+        try {
+            self.importScripts(
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js',
+                'https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js',
+                'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js',
+                'https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js'
+            );
+        } catch (e) {
+            self.postMessage({ type: 'error', data: 'Failed to load critical libraries. Check internet connection.' });
+        }
 
         let model = null;
 
@@ -127,61 +132,71 @@
         }
 
         async function extractXObjects(page, pageNum) {
-            const opList = await page.getOperatorList();
-            for (let i = 0; i < opList.fnArray.length; i++) {
-                if (opList.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
-                    const imgName = opList.argsArray[i][0];
-                    const img = await new Promise(resolve => page.objs.get(imgName, data => resolve(data)));
-                    if (!img || !img.data) continue;
-                    await postAsset(img, pageNum, 'XObject', \`\${pageNum}-\${imgName}\`);
+            try {
+                const opList = await page.getOperatorList();
+                for (let i = 0; i < opList.fnArray.length; i++) {
+                    if (opList.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
+                        const imgName = opList.argsArray[i][0];
+                        const img = await new Promise(resolve => page.objs.get(imgName, data => resolve(data)));
+                        if (!img || !img.data) continue;
+                        await postAsset(img, pageNum, 'XObject', \`\${pageNum}-\${imgName}\`);
+                    }
                 }
-            }
+            } catch (e) { console.error(\`XObject extraction failed on page \${pageNum}: \${e}\`); }
         }
 
         async function extractAsRender(page, pageNum) {
-            const viewport = page.getViewport({ scale: 2.0 });
-            const canvas = new OffscreenCanvas(viewport.width, viewport.height);
-            const context = canvas.getContext('2d');
-            await page.render({ canvasContext: context, viewport }).promise;
-            await postCanvas(canvas, pageNum, 'Render');
+            try {
+                const viewport = page.getViewport({ scale: 2.0 });
+                const canvas = new OffscreenCanvas(viewport.width, viewport.height);
+                const context = canvas.getContext('2d');
+                await page.render({ canvasContext: context, viewport }).promise;
+                await postCanvas(canvas, pageNum, 'Render');
+            } catch (e) { console.error(\`Render extraction failed on page \${pageNum}: \${e}\`); }
         }
 
         async function extractAsSVG(page, pageNum) {
-            const viewport = page.getViewport({ scale: 1.0 });
-            const svgGfx = new pdfjsLib.SVGGraphics(page.commonObjs, page.objs);
-            const svg = await svgGfx.getSVG(await page.getOperatorList(), viewport);
-            const svgString = new XMLSerializer().serializeToString(svg);
-            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-            await postBlob(blob, pageNum, 'SVG', {width: Math.round(viewport.width), height: Math.round(viewport.height)});
+            try {
+                const viewport = page.getViewport({ scale: 1.0 });
+                const svgGfx = new pdfjsLib.SVGGraphics(page.commonObjs, page.objs);
+                const svg = await svgGfx.getSVG(await page.getOperatorList(), viewport);
+                const svgString = new XMLSerializer().serializeToString(svg);
+                const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                await postBlob(blob, pageNum, 'SVG', {width: Math.round(viewport.width), height: Math.round(viewport.height)});
+            } catch (e) { console.error(\`SVG extraction failed on page \${pageNum}: \${e}\`); }
         }
 
         async function extractVectorPaths(page, pageNum) {
-            const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = new OffscreenCanvas(viewport.width, viewport.height);
-            const context = canvas.getContext('2d');
-            const opList = await page.getOperatorList();
-            const pathOnlyOps = opList.fnArray.map((op, i) => {
-                if (op === pdfjsLib.OPS.paintImageXObject || op === pdfjsLib.OPS.showText) {
-                    return pdfjsLib.OPS.dependency;
+            try {
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = new OffscreenCanvas(viewport.width, viewport.height);
+                const context = canvas.getContext('2d');
+                const opList = await page.getOperatorList();
+                const pathOnlyOps = opList.fnArray.map((op) => {
+                    if (op === pdfjsLib.OPS.paintImageXObject || op === pdfjsLib.OPS.showText) {
+                        return pdfjsLib.OPS.dependency;
+                    }
+                    return op;
+                });
+                const pathOpList = { fnArray: pathOnlyOps, argsArray: opList.argsArray };
+                await new pdfjsLib.CanvasGraphics(context, page.commonObjs, page.objs, null).execute(pathOpList);
+                if (!context.getImageData(0, 0, 1, 1).data.every(p => p === 0)) {
+                    await postCanvas(canvas, pageNum, 'Vector Paths');
                 }
-                return op;
-            });
-            const pathOpList = { fnArray: pathOnlyOps, argsArray: opList.argsArray };
-            await new pdfjsLib.CanvasGraphics(context, page.commonObjs, page.objs, null).execute(pathOpList);
-            if (!context.getImageData(0, 0, 1, 1).data.every(p => p === 0)) {
-                await postCanvas(canvas, pageNum, 'Vector Paths');
-            }
+            } catch (e) { console.error(\`Vector Path extraction failed on page \${pageNum}: \${e}\`); }
         }
 
         async function extractAnnotations(page, pageNum) {
-            const annotations = await page.getAnnotations();
-            for (const annotation of annotations) {
-                if (annotation.bitmapId) {
-                    const img = await new Promise(resolve => page.objs.get(annotation.bitmapId, data => resolve(data)));
-                    if (!img || !img.data) continue;
-                    await postAsset(img, pageNum, 'Annotation', \`\${pageNum}-\${annotation.id}\`);
+            try {
+                const annotations = await page.getAnnotations();
+                for (const annotation of annotations) {
+                    if (annotation.bitmapId) {
+                        const img = await new Promise(resolve => page.objs.get(annotation.bitmapId, data => resolve(data)));
+                        if (!img || !img.data) continue;
+                        await postAsset(img, pageNum, 'Annotation', \`\${pageNum}-\${annotation.id}\`);
+                    }
                 }
-            }
+            } catch (e) { console.error(\`Annotation extraction failed on page \${pageNum}: \${e}\`); }
         }
         
         let assetCounter = 0;
@@ -206,6 +221,7 @@
             const src = URL.createObjectURL(blob);
             self.postMessage({ type: 'asset_found', data: { id, src, ...dims, page: pageNum, method } });
             
+            const analysisData = { id, classification: 'Unknown', p_hash: 'N/A', palette: [], ocrText: 'N/A' };
             try {
                 const isSvg = blob.type.includes('svg');
                 const canvas = new OffscreenCanvas(dims.width, dims.height);
@@ -213,64 +229,76 @@
                 const imgBitmap = await createImageBitmap(blob);
                 ctx.drawImage(imgBitmap, 0, 0);
                 
-                const analysisData = { id };
                 if (!isSvg) {
-                    const imgData = ctx.getImageData(0, 0, dims.width, dims.height);
-                    analysisData.p_hash = pHash(imgData);
-                    analysisData.palette = getPalette(imgData);
-                    const { data: { text: ocrText } } = await Tesseract.recognize(canvas, 'eng');
-                    analysisData.ocrText = ocrText;
+                    try {
+                        const imgData = ctx.getImageData(0, 0, dims.width, dims.height);
+                        analysisData.p_hash = pHash(imgData);
+                        analysisData.palette = getPalette(imgData);
+                    } catch (e) { console.error(\`Analysis failed for \${id}: \${e}\`); }
+                    try {
+                        const { data: { text: ocrText } } = await Tesseract.recognize(canvas, 'eng');
+                        analysisData.ocrText = ocrText;
+                    } catch (e) { analysisData.ocrText = 'OCR Failed'; }
                 } else {
                     analysisData.p_hash = 'svg_vector_' + Math.random();
-                    analysisData.palette = ['#FFFFFF', '#000000'];
                     analysisData.ocrText = 'SVG (vector graphics)';
                 }
 
-                const predictions = await model.classify(canvas);
-                analysisData.classification = predictions.length > 0 ? predictions[0].className.split(',')[0] : 'Unknown';
+                try {
+                    const predictions = await model.classify(canvas);
+                    analysisData.classification = predictions.length > 0 ? predictions[0].className.split(',')[0] : 'Unknown';
+                } catch (e) { analysisData.classification = 'AI Failed'; }
+                
                 self.postMessage({ type: 'analysis_complete', data: analysisData });
             } catch (e) {
-                self.postMessage({ type: 'analysis_complete', data: { id, classification: 'Analysis Failed', p_hash: 'error', palette: [], ocrText: e.message } });
+                analysisData.classification = 'Analysis Failed';
+                self.postMessage({ type: 'analysis_complete', data: analysisData });
             }
         }
 
         async function processPDF(pdfData) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
-            if (!model) {
-                self.postMessage({ type: 'progress', data: { message: 'Loading AI model...', percent: 5 } });
-                model = await mobilenet.load();
-            }
-            const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-            const numPages = pdf.numPages;
-            self.postMessage({ type: 'progress', data: { message: 'PDF loaded, starting deconstruction...', percent: 10 } });
+            try {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+                if (!model) {
+                    self.postMessage({ type: 'progress', data: { message: 'Loading AI model...', percent: 5 } });
+                    model = await mobilenet.load();
+                }
+                const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+                const numPages = pdf.numPages;
+                self.postMessage({ type: 'progress', data: { message: 'PDF loaded, starting deconstruction...', percent: 10 } });
 
-            for (let i = 1; i <= numPages; i++) {
-                const page = await pdf.getPage(i);
-                await Promise.all([
-                    extractXObjects(page, i),
-                    extractAsRender(page, i),
-                    extractAsSVG(page, i),
-                    extractVectorPaths(page, i),
-                    extractAnnotations(page, i)
-                ]);
-                self.postMessage({ type: 'progress', data: { message: \`Deconstructed page \${i}/\${numPages}\`, percent: 10 + (i / numPages) * 90 } });
+                for (let i = 1; i <= numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    await Promise.all([
+                        extractXObjects(page, i),
+                        extractAsRender(page, i),
+                        extractAsSVG(page, i),
+                        extractVectorPaths(page, i),
+                        extractAnnotations(page, i)
+                    ]);
+                    self.postMessage({ type: 'progress', data: { message: \`Deconstructed page \${i}/\${numPages}\`, percent: 10 + (i / numPages) * 90 } });
+                }
+            } catch (e) {
+                self.postMessage({ type: 'error', data: \`PDF processing failed: \${e.message}\` });
             }
         }
 
         self.onmessage = (e) => {
             if (e.data.type === 'process') {
-                processPDF(e.data.pdfData).catch(err => self.postMessage({ type: 'error', data: err.message }));
+                processPDF(e.data.pdfData);
             }
         };
-    `;
+    </script>
 
+    <script>
     document.addEventListener('DOMContentLoaded', () => {
         let state = { assets: new Map(), selectedAssetIds: new Set(), lastSelectedId: null, filters: { type: 'all' }, sortBy: 'page' };
-        const workerBlob = new Blob([workerScript], { type: 'application/javascript' });
+        const workerBlob = new Blob([document.getElementById('worker-script').textContent], { type: 'application/javascript' });
         const worker = new Worker(URL.createObjectURL(workerBlob));
         
         const ui = {
             uploadZone: document.getElementById('upload-zone'),
+            uploadText: document.getElementById('upload-text'),
             fileInput: document.getElementById('file-input'),
             imageGrid: document.getElementById('image-grid'),
             detailsPane: document.getElementById('details-pane'),
@@ -310,9 +338,14 @@
 
         function handleFileSelect(files) {
             const file = files[0];
-            if (!file || file.type !== 'application/pdf') return;
+            if (!file || file.type !== 'application/pdf') {
+                alert('Invalid file type. Please select a PDF.');
+                return;
+            }
             resetState();
             ui.welcomeMessage.classList.add('hidden');
+            ui.uploadZone.classList.add('processing');
+            ui.uploadText.textContent = 'Processing...';
             const fileReader = new FileReader();
             fileReader.onload = (ev) => worker.postMessage({ type: 'process', pdfData: new Uint8Array(ev.target.result) });
             fileReader.readAsArrayBuffer(file);
@@ -324,6 +357,8 @@
             ui.detailsPane.classList.add('hidden');
             ui.filterType.innerHTML = '<option value="all">All Types</option>';
             setControlsEnabled(false);
+            ui.uploadZone.classList.remove('processing');
+            ui.uploadText.textContent = 'Drag & Drop PDF here or click to select';
         }
 
         function setControlsEnabled(isEnabled) {
@@ -337,6 +372,8 @@
             if (percent >= 100) {
                 setTimeout(() => ui.progressContainer.classList.add('hidden'), 2000);
                 setControlsEnabled(true);
+                ui.uploadZone.classList.remove('processing');
+                ui.uploadText.textContent = 'Select another PDF';
             } else {
                 setControlsEnabled(false);
             }
