@@ -3,18 +3,23 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>PDF Image Extractor • Stable</title>
+<title>PDF Image Extractor • Stable (2.16.105)</title>
 
-<!-- pdf.js (pin exact version and worker) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js"></script>
+<!-- pdf.js (stable 2.16.105) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.js";
+  // Make sure pdf.js is present before setting workerSrc.
+  (function ensurePdfjsReady(){
+    const lib = window.pdfjsLib;
+    if (!lib) { return setTimeout(ensurePdfjsReady, 30); }
+    lib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+    // Optional stable alias
+    window.PDFJS = lib;
+  })();
 </script>
 
-<!-- Optional AI/OCR & zip -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
+<!-- Optional OCR & ZIP (you can remove if not needed) -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
@@ -30,7 +35,7 @@
   #left{grid-area:left;border-right:1px solid var(--bd);padding:14px;overflow:auto;background:var(--sf)}
   #right{grid-area:right;border-left:1px solid var(--bd);padding:14px;overflow:auto;background:var(--sf)}
   #main{grid-area:main;display:flex;flex-direction:column;min-width:0}
-  .drop{border:1px dashed var(--bd);border-radius:var(--r);padding:18px;text-align:center;cursor:pointer}
+  .drop{border:1px dashed var(--bd);border-radius:12px;padding:18px;text-align:center;cursor:pointer}
   .drop.drag{border-color:var(--pri);background:rgba(90,169,255,.08)}
   .muted{opacity:.7}
   .barwrap{height:8px;background:#1d2230;border-radius:999px;overflow:hidden;margin-top:8px}
@@ -102,7 +107,7 @@
   <section id="gallery">
     <div id="welcome">
       <h3>Welcome</h3>
-      <p class="muted">Open a PDF to extract images. This version is hardened for Safari/Chromium and large files.</p>
+      <p class="muted">Open a PDF to extract images. This version pins pdf.js 2.16.105 and handles Safari/Chromium quirks.</p>
     </div>
     <div id="grid"></div>
   </section>
@@ -118,7 +123,14 @@
 
 <script>
 (() => {
-  // ---------- Polyfills & feature detection ----------
+  // ----------- Helpers for pdf.js availability -----------
+  function getPDF() {
+    const PDF = window.PDFJS || window.pdfjsLib;
+    if (!PDF) throw new Error("pdf.js failed to load. Check network and script tag.");
+    return PDF;
+  }
+
+  // ----------- Polyfills & feature detection -----------
   const hasOffscreen = typeof OffscreenCanvas !== 'undefined';
   function canvasToBlob(canvas, type='image/png', quality=0.92){
     if (hasOffscreen && canvas instanceof OffscreenCanvas){
@@ -128,7 +140,7 @@
   }
   async function bitmapFromBlob(blob){
     if ('createImageBitmap' in window) return await createImageBitmap(blob);
-    // Fallback for Safari
+    // Safari fallback
     return await new Promise((resolve, reject)=>{
       const img = new Image();
       img.onload = () => {
@@ -149,7 +161,7 @@
   }
   function clearErr(){ const el = document.getElementById('err'); el.style.display='none'; el.textContent=''; }
 
-  // ---------- UI refs ----------
+  // ----------- UI refs -----------
   const ui = {
     drop: document.getElementById('drop'),
     file: document.getElementById('file'),
@@ -169,13 +181,13 @@
     welcome: document.getElementById('welcome'),
   };
 
-  // ---------- State ----------
+  // ----------- State -----------
   let abortLoad = null;
   const state = {
     pdf:null, numPages:0, assets:[], selected:new Set(), pages:new Map()
   };
 
-  // ---------- Helpers ----------
+  // ----------- Misc helpers -----------
   function progress(p, t){ ui.bar.style.width=p+'%'; ui.ptext.textContent=t||''; }
   function setStatus(t){ ui.status.textContent = t; }
 
@@ -221,13 +233,13 @@
       if (signal.aborted) return;
 
       progress(10,'Loading pdf.js document…');
-      const task = pdfjsLib.getDocument({data:new Uint8Array(buf)});
-      state.pdf = await task.promise;                  // <- If this fails before, we now catch it.
+      const PDF = getPDF();
+      const task = PDF.getDocument({data:new Uint8Array(buf)});
+      state.pdf = await task.promise;
       state.numPages = state.pdf.numPages;
       setStatus(`Loaded (${state.numPages} pages)`); progress(15,'Starting extraction…');
       ui.welcome.style.display='none';
 
-      // Extract sequentially (predictable memory usage)
       for (let i=1;i<=state.numPages;i++){
         if (signal.aborted) return;
         progress(15 + Math.round((i-1)/state.numPages*70), `Page ${i}/${state.numPages}`);
@@ -244,8 +256,9 @@
     }
   }
 
-  // Safe drawImage interception
+  // Safe drawImage interception (2.16 works with CanvasRenderingContext2D)
   async function extractPage(pageNum){
+    const PDF = getPDF();
     const page = await state.pdf.getPage(pageNum);
     const viewport = page.getViewport({ scale: 2.0 });
     const canvas = document.createElement('canvas');
@@ -261,17 +274,16 @@
       try{
         const img = args[0];
         if (!img) return orig.apply(this,args);
-        // normalize params
         let sx=0,sy=0,sW=img.width,sH=img.height,dx=0,dy=0,dW=sW,dH=sH;
         if (args.length===3){ dx=args[1]; dy=args[2]; }
         else if (args.length===5){ dx=args[1]; dy=args[2]; dW=args[3]; dH=args[4]; }
         else if (args.length===9){ sx=args[1]; sy=args[2]; sW=args[3]; sH=args[4]; dx=args[5]; dy=args[6]; dW=args[7]; dH=args[8]; }
 
-        // build source canvas
         let off;
         if (hasOffscreen) off = new OffscreenCanvas(Math.max(1,sW), Math.max(1,sH));
         else { off = document.createElement('canvas'); off.width=Math.max(1,sW); off.height=Math.max(1,sH); }
         const octx = off.getContext('2d');
+
         try{
           if (args.length===9) octx.drawImage(img, sx, sy, sW, sH, 0, 0, sW, sH);
           else octx.drawImage(img, 0, 0);
@@ -306,14 +318,13 @@
       const url = URL.createObjectURL(blob);
       const w = off.width, h = off.height;
       const id = `p${page}-${String(seq).padStart(3,'0')}`;
-      state.assets.push({ id, page, type, width:w, height:h, area:w*h, aspect:+(w/h).toFixed(3), bbox, url, blob, aiClass:'—', ocr:null });
+      state.assets.push({ id, page, type, width:w, height:h, area:w*h, aspect:+(w/h).toFixed(3), bbox, url, blob, ocr:null });
     } catch(e){
-      // non-fatal
       console.warn('postAsset failed', e);
     }
   }
 
-  // ---------- Rendering ----------
+  // ----------- Rendering -----------
   function renderGrid(){
     const f = ui.filter.value, s = ui.sort.value;
     let items = [...state.assets];
@@ -379,6 +390,7 @@
     for (const p of toShow){
       const info = state.pages.get(p);
       if (!info?.preview){
+        const PDF = getPDF();
         const page = await state.pdf.getPage(p);
         const vp = page.getViewport({scale:1.2});
         const c = document.createElement('canvas'); c.width=vp.width|0; c.height=vp.height|0; await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
@@ -389,7 +401,6 @@
       const ctx = cv.getContext('2d');
       const img = new Image(); img.src = info.preview; await img.decode(); ctx.drawImage(img,0,0);
 
-      // bboxes
       state.assets.filter(a=>a.page===p).forEach(a=>{
         const bb = a.bbox;
         const box = document.createElement('div'); box.className='bbox';
