@@ -1,519 +1,608 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Forensics Engine</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <style>
-        :root {
-            --bg-dark: #121212; --text-dark: #e0e0e0; --primary-dark: #0d8eff; --surface-dark: #1e1e1e; --border-dark: #333; --success-dark: #4caf50; --error-dark: #f44336;
-            --bg-light: #f9f9f9; --text-light: #212121; --primary-light: #0077cc; --surface-light: #ffffff; --border-light: #e0e0e0; --success-light: #2e7d32; --error-light: #c62828;
-            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; --font-mono: 'SF Mono', 'Consolas', 'Courier New', monospace;
-        }
-        html, body { height: 100%; margin: 0; overflow: hidden; font-family: var(--font-main); }
-        body { display: flex; transition: background-color 0.3s, color 0.3s; }
-        body.dark-mode { --bg: var(--bg-dark); --text: var(--text-dark); --primary: var(--primary-dark); --surface: var(--surface-dark); --border: var(--border-dark); --success: var(--success-dark); --error: var(--error-dark); }
-        body.light-mode { --bg: var(--bg-light); --text: var(--text-light); --primary: var(--primary-light); --surface: var(--surface-light); --border: var(--border-light); --success: var(--success-light); --error: var(--error-light); }
-        body { background-color: var(--bg); color: var(--text); }
-        #sidebar { width: 300px; background-color: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 1.5rem; transition: background-color 0.3s; flex-shrink: 0; }
-        #main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
-        #gallery-pane { flex-grow: 1; overflow-y: auto; padding: 1.5rem; }
-        #details-pane { width: 350px; background-color: var(--surface); border-left: 1px solid var(--border); padding: 1.5rem; overflow-y: auto; transition: width 0.3s, background-color 0.3s, padding 0.3s; flex-shrink: 0; }
-        #details-pane.hidden { width: 0; padding: 0; border-left: none; }
-        #upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 1.5rem; transition: border-color 0.3s, background-color 0.3s; cursor: pointer; display: block; }
-        #upload-zone.dragover { border-color: var(--primary); background-color: rgba(13, 142, 255, 0.1); }
-        #upload-zone.processing { cursor: not-allowed; background-color: var(--border); }
-        .control-group { margin-bottom: 1.5rem; }
-        .control-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; opacity: 0.8; }
-        select, button { width: 100%; padding: 0.8rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--bg); color: var(--text); font-size: 1rem; }
-        button { background-color: var(--primary); color: white; border: none; cursor: pointer; transition: opacity 0.2s; }
-        button:disabled, select:disabled { background-color: var(--border); cursor: not-allowed; opacity: 0.5; }
-        #file-input { display: none; }
-        #progress-container { margin-top: 1rem; }
-        #progress-bar { width: 0%; height: 8px; background-color: var(--primary); border-radius: 4px; transition: width 0.2s ease-out; }
-        #progress-label { text-align: center; font-size: 0.9rem; margin-top: 0.5rem; opacity: 0.8; }
-        #image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
-        .image-card { border-radius: 8px; overflow: hidden; cursor: pointer; position: relative; border: 2px solid transparent; background-color: var(--surface); }
-        .image-card.selected { border-color: var(--primary); box-shadow: 0 0 15px rgba(13, 142, 255, 0.5); }
-        .image-card img { width: 100%; height: 150px; object-fit: contain; display: block; }
-        .card-footer { padding: 0.5rem; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; background-color: rgba(0,0,0,0.2); }
-        .spinner { border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; position: absolute; top: calc(50% - 15px); left: calc(50% - 15px); }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #details-pane h3 { margin-top: 0; }
-        #details-preview { width: 100%; height: 200px; object-fit: contain; margin-bottom: 1rem; border-radius: 8px; background-color: var(--bg); }
-        .detail-item { margin-bottom: 1rem; }
-        .detail-item strong { display: block; opacity: 0.8; margin-bottom: 0.2rem; }
-        #ocr-text { background-color: var(--bg); padding: 0.5rem; border-radius: 4px; max-height: 150px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.9rem; }
-        #color-palette { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        .color-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border); }
-    </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>PDF Image Extractor • Forensics-Grade</title>
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js" integrity="sha512-L7oEw8h7bVd1VZb7Q2Tg7vJ2B0pW4mSWmP0h7WZK+J+e3u7x7uC8cXv6uY0FjL5pJmWw2Y0W2o0Lw9y2n6F8Pw==" crossorigin="anonymous"></script>
+  <script>
+    // pdf.js worker (required)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.js";
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark:#0f1115; --text-dark:#e7e7ea; --muted-dark:#a5a7ae; --surface-dark:#171a21; --border-dark:#2a2f3a; --primary-dark:#5aa9ff; --accent-dark:#24d8a7; --danger-dark:#ff5d5d;
+      --bg-light:#f7f7fb; --text-light:#1d2230; --muted-light:#60657a; --surface-light:#ffffff; --border-light:#dee1ea; --primary-light:#2563eb; --accent-light:#059669; --danger-light:#dc2626;
+      --radius:14px; --pad:14px; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%}
+    body{margin:0;display:grid;grid-template-columns:320px 1fr 360px;grid-template-rows:56px 1fr;grid-template-areas:
+      "topbar topbar topbar"
+      "sidebar main details";
+      font-family:var(--font); transition:.2s background,color;}
+    body.dark{--bg:var(--bg-dark);--text:var(--text-dark);--muted:var(--muted-dark);--surface:var(--surface-dark);--border:var(--border-dark);--primary:var(--primary-dark);--accent:var(--accent-dark);--danger:var(--danger-dark);}
+    body.light{--bg:var(--bg-light);--text:var(--text-light);--muted:var(--muted-light);--surface:var(--surface-light);--border:var(--border-light);--primary:var(--primary-light);--accent:var(--accent-light);--danger:var(--danger-light);}
+    body{background:var(--bg);color:var(--text)}
+    header{grid-area:topbar;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:5}
+    header h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.2px}
+    header .spacer{flex:1}
+    header button{border:1px solid var(--border);background:transparent;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer}
+    header button:hover{border-color:var(--primary)}
+    #sidebar{grid-area:sidebar;border-right:1px solid var(--border);background:var(--surface);padding:16px;overflow:auto}
+    #details{grid-area:details;border-left:1px solid var(--border);background:var(--surface);padding:16px;overflow:auto}
+    #main{grid-area:main;display:flex;flex-direction:column;overflow:hidden}
+    .box{border:1px dashed var(--border);border-radius:var(--radius);padding:18px;text-align:center;cursor:pointer;background:transparent}
+    .box.drag{border-color:var(--primary);background:rgba(90,169,255,.08)}
+    .controls{display:grid;gap:12px;margin-top:16px}
+    .controls label{font-size:12px;color:var(--muted)}
+    .controls select,.controls button{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--text)}
+    .muted{color:var(--muted)}
+    .progress{margin-top:12px}
+    .bar{height:8px;background:linear-gradient(90deg,var(--primary),var(--accent));width:0;border-radius:999px;transition:width .2s}
+    .bar-wrap{background:rgba(127,127,127,0.2);border-radius:999px;overflow:hidden}
+    .tabs{display:flex;border-bottom:1px solid var(--border);flex:0 0 auto}
+    .tabs button{padding:12px 16px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+    .tabs button.active{color:var(--text);border-bottom-color:var(--primary)}
+    #gallery{padding:16px;overflow:auto}
+    #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+    .thumb{height:140px;display:flex;align-items:center;justify-content:center;background:rgba(127,127,127,0.08)}
+    .thumb img{max-width:100%;max-height:100%;display:block}
+    .meta{padding:8px 10px;font-size:12px;display:grid;gap:4px}
+    .meta .row{display:flex;justify-content:space-between;gap:8px}
+    .select{padding:8px;border-top:1px solid var(--border);display:flex;gap:8px}
+    .select button{flex:1;padding:8px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;cursor:pointer}
+    .select button.sel{background:var(--primary);border-color:var(--primary);color:#fff}
+    #preview{position:relative;overflow:auto;flex:1}
+    .pageWrap{position:relative;margin:16px auto;width:max-content}
+    canvas.pdf{box-shadow:0 12px 32px rgba(0,0,0,.35);border-radius:12px}
+    .bbox{position:absolute;border:2px solid var(--primary);background:rgba(90,169,255,.18);cursor:pointer}
+    .bbox:hover{background:rgba(90,169,255,.28)}
+    .pagination{display:flex;justify-content:center;gap:10px;padding:12px;border-top:1px solid var(--border);flex:0 0 auto}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:999px}
+    code{font-family:var(--mono);font-size:12px}
+    .kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--border);padding:2px 6px;border-radius:6px}
+    .danger{color:var(--danger)}
+  </style>
 </head>
-<body class="dark-mode">
-    <aside id="sidebar">
-        <h2>Forensics Engine</h2>
-        <label for="file-input" id="upload-zone">
-            <p id="upload-text">Drag & Drop PDF here or click to select</p>
-        </label>
-        <input type="file" id="file-input" accept="application/pdf">
-        <div id="progress-container" class="hidden">
-            <div id="progress-bar"></div>
-            <p id="progress-label">Initializing...</p>
-        </div>
-        <div class="control-group">
-            <label for="filter-type">Filter by AI Type</label>
-            <select id="filter-type"><option value="all">All Types</option></select>
-        </div>
-        <div class="control-group">
-            <label for="sort-by">Sort by</label>
-            <select id="sort-by">
-                <option value="page">Page Number</option>
-                <option value="size">Image Size</option>
-                <option value="similarity">Visual Similarity</option>
-            </select>
-        </div>
-        <div class="control-group">
-            <button id="export-json-btn" disabled>Export Data as JSON</button>
-        </div>
-        <div class="control-group">
-            <button id="download-zip-btn" disabled>Download Selected as ZIP</button>
-        </div>
-    </aside>
-    <main id="main-content">
-        <div id="gallery-pane">
-            <div id="welcome-message">
-                <h1>PDF Visual Forensics Engine</h1>
-                <p>Select a PDF to begin the automated analysis and extraction process.</p>
-            </div>
-            <div id="image-grid"></div>
-        </div>
-        <aside id="details-pane" class="hidden"></aside>
-    </main>
+<body class="dark">
+  <header>
+    <h1>PDF Image Extractor</h1>
+    <span class="pill">Status: <span id="status">Idle</span></span>
+    <div class="spacer"></div>
+    <button id="toggleTheme" title="Toggle theme"><span>Toggle Theme</span></button>
+  </header>
 
-    <script id="worker-script" type="javascript/worker">
-        try {
-            self.importScripts(
-                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js',
-                'https://cdn.jsdelivr.net/npm/tesseract.js@2.1.5/dist/tesseract.min.js',
-                'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js',
-                'https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js'
-            );
-        } catch (e) {
-            self.postMessage({ type: 'error', data: 'Failed to load critical libraries. Check internet connection.' });
+  <aside id="sidebar">
+    <label for="file" class="box" id="drop">
+      <strong>Drag & drop PDF</strong><br/>
+      <span class="muted">or click to select</span>
+    </label>
+    <input id="file" type="file" accept="application/pdf" hidden/>
+    <div class="progress" id="progressWrap" style="display:none">
+      <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+      <div class="muted" id="progressText" style="margin-top:6px">Preparing…</div>
+    </div>
+
+    <div class="controls">
+      <div>
+        <label>Filter by type</label>
+        <select id="filter">
+          <option value="all">All</option>
+          <option value="jpeg">JPEG</option>
+          <option value="image">Image</option>
+          <option value="inline">Inline</option>
+          <option value="canvas">Canvas</option>
+        </select>
+      </div>
+      <div>
+        <label>Sort by</label>
+        <select id="sort">
+          <option value="page">Page</option>
+          <option value="size">Pixel Area</option>
+          <option value="aspect">Aspect Ratio</option>
+          <option value="class">AI Class (A→Z)</option>
+        </select>
+      </div>
+      <button id="exportJson" disabled>Export JSON Manifest</button>
+      <button id="downloadZip" disabled>Download Selected as ZIP</button>
+      <div class="muted" style="font-size:12px">
+        Tip: Click an image → “OCR” for text. Hold <span class="kbd">Shift</span> to multi-select.
+      </div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div class="tabs">
+      <button class="active" data-tab="gallery">Asset Gallery</button>
+      <button data-tab="preview">Interactive Preview</button>
+    </div>
+    <section id="gallery">
+      <div id="welcome">
+        <h2>Welcome</h2>
+        <p class="muted">Open a PDF to extract embedded images, with AI classification, precise bounding boxes, and batch export.</p>
+      </div>
+      <div id="grid"></div>
+    </section>
+
+    <section id="preview" style="display:none">
+      <div id="pageHost"></div>
+      <div class="pagination">
+        <button id="prev" disabled>← Prev</button>
+        <span id="pageInfo" class="muted"></span>
+        <button id="next" disabled>Next →</button>
+      </div>
+    </section>
+  </main>
+
+  <aside id="details">
+    <h3>Details</h3>
+    <div id="detailsBody" class="muted">Select an asset to see metadata.</div>
+  </aside>
+
+<script>
+(() => {
+  const ui = {
+    body: document.body,
+    toggleTheme: document.getElementById('toggleTheme'),
+    file: document.getElementById('file'),
+    drop: document.getElementById('drop'),
+    status: document.getElementById('status'),
+    bar: document.getElementById('bar'),
+    progressWrap: document.getElementById('progressWrap'),
+    progressText: document.getElementById('progressText'),
+    tabs: document.querySelectorAll('.tabs button'),
+    gallerySection: document.getElementById('gallery'),
+    previewSection: document.getElementById('preview'),
+    grid: document.getElementById('grid'),
+    welcome: document.getElementById('welcome'),
+    filter: document.getElementById('filter'),
+    sort: document.getElementById('sort'),
+    exportJson: document.getElementById('exportJson'),
+    downloadZip: document.getElementById('downloadZip'),
+    details: document.getElementById('detailsBody'),
+    prev: document.getElementById('prev'),
+    next: document.getElementById('next'),
+    pageInfo: document.getElementById('pageInfo'),
+    pageHost: document.getElementById('pageHost'),
+  };
+
+  const state = {
+    pdf: null,
+    numPages: 0,
+    pages: new Map(), // pageNum -> {width,height,scale}
+    assets: [],       // array of asset
+    selected: new Set(),
+    currentPage: 1,
+    model: null,      // mobilenet
+  };
+
+  // Theme
+  ui.toggleTheme.addEventListener('click', () => {
+    ui.body.classList.toggle('dark');
+    ui.body.classList.toggle('light');
+  });
+
+  // Drag & drop
+  ['dragenter','dragover'].forEach(evt =>
+    ui.drop.addEventListener(evt, e => { e.preventDefault(); ui.drop.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    ui.drop.addEventListener(evt, e => { e.preventDefault(); ui.drop.classList.remove('drag'); })
+  );
+  ui.drop.addEventListener('click', () => ui.file.click());
+  ui.drop.addEventListener('drop', e => {
+    const f = e.dataTransfer.files?.[0];
+    if (f) openPDF(f);
+  });
+  ui.file.addEventListener('change', e => {
+    const f = e.target.files?.[0];
+    if (f) openPDF(f);
+  });
+
+  // Tabs
+  ui.tabs.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+  function switchTab(name){
+    ui.tabs.forEach(b => b.classList.toggle('active', b.dataset.tab===name));
+    ui.gallerySection.style.display = name==='gallery' ? '' : 'none';
+    ui.previewSection.style.display = name==='preview' ? '' : 'none';
+    if (name==='preview' && state.pdf) renderPreview(state.currentPage);
+  }
+
+  // Controls
+  ui.filter.addEventListener('change', renderGrid);
+  ui.sort.addEventListener('change', renderGrid);
+  ui.exportJson.addEventListener('click', exportJSON);
+  ui.downloadZip.addEventListener('click', downloadZIP);
+
+  // Page nav
+  ui.prev.addEventListener('click', () => renderPreview(state.currentPage-1));
+  ui.next.addEventListener('click', () => renderPreview(state.currentPage+1));
+
+  // Helpers
+  function setStatus(s){ ui.status.textContent = s; }
+  function setProgress(p, t=''){ ui.progressWrap.style.display='block'; ui.bar.style.width = `${p}%`; ui.progressText.textContent = t; }
+
+  async function openPDF(file){
+    reset();
+    setStatus('Loading PDF…');
+    setProgress(5, 'Reading file…');
+    const buf = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({data:new Uint8Array(buf)});
+    state.pdf = await loadingTask.promise;
+    state.numPages = state.pdf.numPages;
+    setProgress(10, `Loaded. Pages: ${state.numPages}`);
+    ui.welcome.style.display='none';
+
+    // Extract pages sequentially (stable memory)
+    for(let i=1;i<=state.numPages;i++){
+      setProgress(10 + Math.round((i-1)/state.numPages*70), `Rendering & intercepting images (page ${i}/${state.numPages})`);
+      await extractPage(i);
+    }
+    setProgress(95, 'Finalizing UI…');
+
+    ui.exportJson.disabled = state.assets.length===0;
+    ui.downloadZip.disabled = state.assets.length===0;
+    setStatus(`Done: ${state.assets.length} image(s)`);
+    setProgress(100, 'Complete');
+    renderGrid();
+    switchTab('gallery');
+  }
+
+  function reset(){
+    state.assets = [];
+    state.selected.clear();
+    state.pages.clear();
+    state.currentPage = 1;
+    ui.grid.innerHTML='';
+    ui.details.innerHTML='Select an asset to see metadata.';
+    ui.pageHost.innerHTML='';
+    ui.pageInfo.textContent='';
+    ui.prev.disabled = true;
+    ui.next.disabled = true;
+    setStatus('Idle');
+    setProgress(0,'');
+  }
+
+  // Intercept drawImage on a temporary context for each page render
+  async function extractPage(pageNum){
+    const page = await state.pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 2.0 }); // high-res for cleaner crops
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width|0;
+    canvas.height = viewport.height|0;
+    const ctx = canvas.getContext('2d');
+
+    // Record page dims
+    state.pages.set(pageNum, { width: canvas.width, height: canvas.height, scale: 2.0 });
+
+    const origDrawImage = CanvasRenderingContext2D.prototype.drawImage;
+
+    // A tiny ID sequencer per page
+    let seq = 0;
+
+    CanvasRenderingContext2D.prototype.drawImage = function(...args){
+      try{
+        // Capture before actual draw to ensure we get the right source
+        const img = args[0];
+        if (!img) return origDrawImage.apply(this,args);
+
+        // Forms:
+        // drawImage(image, dx, dy)
+        // drawImage(image, dx, dy, dWidth, dHeight)
+        // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+        let sx=0, sy=0, sWidth, sHeight, dx=0, dy=0, dWidth, dHeight, usedForm=0;
+        if (args.length===3){ usedForm=3; dx=args[1]; dy=args[2]; dWidth=img.width; dHeight=img.height; sWidth=img.width; sHeight=img.height; }
+        else if (args.length===5){ usedForm=5; dx=args[1]; dy=args[2]; dWidth=args[3]; dHeight=args[4]; sWidth=img.width; sHeight=img.height; }
+        else if (args.length===9){ usedForm=9; sx=args[1]; sy=args[2]; sWidth=args[3]; sHeight=args[4]; dx=args[5]; dy=args[6]; dWidth=args[7]; dHeight=args[8]; }
+        else { return origDrawImage.apply(this,args); }
+
+        // Crop source to an offscreen canvas
+        const cropW = Math.max(1, Math.floor(sWidth));
+        const cropH = Math.max(1, Math.floor(sHeight));
+        const off = new OffscreenCanvas(cropW, cropH);
+        const octx = off.getContext('2d');
+        // Draw full source into temp then extract region if needed
+        try{
+          // Some sources are already Canvas/ImageBitmap; draw and then copy region
+          octx.drawImage(img, 0, 0);
+          if (usedForm===9){
+            // Re-crop into another canvas to avoid sampling issues
+            const off2 = new OffscreenCanvas(sWidth, sHeight);
+            const o2 = off2.getContext('2d');
+            o2.drawImage(off, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+            postAsset(off2, pageNum, guessType(img), { x: dx, y: dy, w: dWidth, h: dHeight }, seq++);
+          } else {
+            postAsset(off, pageNum, guessType(img), { x: dx, y: dy, w: dWidth, h: dHeight }, seq++);
+          }
+        } catch(e){
+          // Fallback: use a canvas of destination size and draw
+          const offF = new OffscreenCanvas(Math.max(1, Math.floor(dWidth)), Math.max(1, Math.floor(dHeight)));
+          const oF = offF.getContext('2d');
+          if (usedForm===9) oF.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, dWidth, dHeight);
+          else oF.drawImage(img, 0, 0, dWidth, dHeight);
+          postAsset(offF, pageNum, 'canvas', { x: dx, y: dy, w: dWidth, h: dHeight }, seq++);
         }
+      } catch(e){
+        console.warn('drawImage intercept failed:', e);
+      }
+      return origDrawImage.apply(this,args);
+    };
 
-        let model = null;
+    // Render page (this triggers our intercepts)
+    await page.render({ canvasContext: ctx, viewport }).promise;
 
-        function pHash(imgData) {
-            const pixels = imgData.data;
-            let hash = 0;
-            for (let i = 0; i < pixels.length; i += 400) {
-                const avg = (pixels[i] + pixels[i+1] + pixels[i+2]) / 3;
-                hash = (hash << 1) | (avg > 128 ? 1 : 0);
-            }
-            return hash.toString(16);
+    // Restore original
+    CanvasRenderingContext2D.prototype.drawImage = origDrawImage;
+
+    // Keep a preview canvas for this page (for preview tab)
+    page.cleanup?.();
+    const pageURL = canvas.toDataURL('image/webp', 0.85);
+    state.pages.get(pageNum).previewURL = pageURL;
+  }
+
+  function guessType(img){
+    // Heuristic type label (for filtering only)
+    const name = Object.prototype.toString.call(img);
+    if (name.includes('ImageBitmap')) return 'image';
+    if (name.includes('HTMLCanvas')) return 'canvas';
+    if (name.includes('ImageData')) return 'inline';
+    return 'image';
+  }
+
+  async function postAsset(offscreenCanvas, page, type, bbox, seq){
+    try{
+      const blob = await offscreenCanvas.convertToBlob({ type: 'image/png', quality: 0.92 });
+      const url = URL.createObjectURL(blob);
+      const w = offscreenCanvas.width;
+      const h = offscreenCanvas.height;
+      const area = w*h;
+      const ar = +(w/h).toFixed(3);
+      const id = `p${page}-${String(seq).padStart(3,'0')}`;
+      const asset = {
+        id, page, type, width:w, height:h, area, aspect:ar,
+        bbox: { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h },
+        url, blob, aiClass: '—', ocr: null
+      };
+      state.assets.push(asset);
+      // Non-blocking AI classification
+      classify(asset).catch(()=>{});
+    } catch(e){
+      console.warn('postAsset failed', e);
+    }
+  }
+
+  async function classify(asset){
+    try{
+      if (!state.model){
+        setStatus('Loading AI model…');
+        state.model = await mobilenet.load();
+        setStatus('Ready');
+      }
+      // Create bitmap for classification
+      const bmp = await createImageBitmap(asset.blob);
+      const can = new OffscreenCanvas(bmp.width, bmp.height);
+      const ctx = can.getContext('2d');
+      ctx.drawImage(bmp, 0, 0);
+      const preds = await state.model.classify(can);
+      asset.aiClass = preds?.[0]?.className?.split(',')[0] ?? 'unknown';
+      // If visible in grid, update label
+      const tag = document.querySelector(`[data-asset="${asset.id}"] .ai`);
+      if (tag) tag.textContent = asset.aiClass;
+    } catch(e){
+      asset.aiClass = 'error';
+    }
+  }
+
+  function renderGrid(){
+    const f = ui.filter.value;
+    const s = ui.sort.value;
+    let list = [...state.assets];
+    if (f!=='all') list = list.filter(a => a.type===f || (f==='jpeg' && a.blob.type.includes('jpeg')));
+    if (s==='page') list.sort((a,b)=>a.page-b.page || a.id.localeCompare(b.id));
+    if (s==='size') list.sort((a,b)=>b.area-a.area);
+    if (s==='aspect') list.sort((a,b)=>b.aspect-a.aspect);
+    if (s==='class') list.sort((a,b)=>String(a.aiClass).localeCompare(String(b.aiClass)));
+
+    ui.grid.innerHTML='';
+    for(const a of list){
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.asset = a.id;
+
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      const img = document.createElement('img');
+      img.loading='lazy';
+      img.src = a.url;
+      thumb.appendChild(img);
+
+      const meta = document.createElement('div');
+      meta.className='meta';
+      meta.innerHTML = `
+        <div class="row"><span><strong>${a.id}</strong></span><span class="muted">p.${a.page}</span></div>
+        <div class="row"><span>${a.width}×${a.height}</span><span>${(a.area/1e6).toFixed(2)} MP</span></div>
+        <div class="row"><span>Aspect</span><span>${a.aspect}</span></div>
+        <div class="row"><span>Type</span><span>${a.type}</span></div>
+        <div class="row"><span>AI</span><span class="ai">${a.aiClass}</span></div>
+      `;
+
+      const sel = document.createElement('div');
+      sel.className='select';
+      const btnSel = document.createElement('button');
+      btnSel.textContent = state.selected.has(a.id) ? 'Selected' : 'Select';
+      btnSel.classList.toggle('sel', state.selected.has(a.id));
+      btnSel.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        toggleSelect(a.id, ev.shiftKey);
+        btnSel.textContent = state.selected.has(a.id) ? 'Selected' : 'Select';
+        btnSel.classList.toggle('sel', state.selected.has(a.id));
+      });
+
+      const btnOcr = document.createElement('button');
+      btnOcr.textContent = 'OCR';
+      btnOcr.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        btnOcr.disabled = true;
+        btnOcr.textContent = 'OCR…';
+        try{
+          const { data } = await Tesseract.recognize(a.blob, 'eng');
+          a.ocr = data.text.trim();
+          showDetails(a);
+        } finally{
+          btnOcr.disabled = false;
+          btnOcr.textContent = 'OCR';
         }
+      });
 
-        function getPalette(imgData, count = 5) {
-            const pixels = imgData.data;
-            const colorCounts = {};
-            for (let i = 0; i < pixels.length; i += 4) {
-                const r = Math.round(pixels[i] / 32) * 32;
-                const g = Math.round(pixels[i+1] / 32) * 32;
-                const b = Math.round(pixels[i+2] / 32) * 32;
-                const hex = "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-                colorCounts[hex] = (colorCounts[hex] || 0) + 1;
-            }
-            return Object.entries(colorCounts).sort((a, b) => b[1] - a[1]).slice(0, count).map(c => c[0]);
-        }
+      sel.append(btnSel, btnOcr);
+      card.append(thumb, meta, sel);
+      card.addEventListener('click', ()=> {
+        showDetails(a);
+        // Jump to preview page & highlight bbox
+        switchTab('preview');
+        renderPreview(a.page, a.id);
+      });
+      ui.grid.appendChild(card);
+    }
+  }
 
-        async function extractXObjects(page, pageNum) {
-            try {
-                const opList = await page.getOperatorList();
-                for (let i = 0; i < opList.fnArray.length; i++) {
-                    if (opList.fnArray[i] === pdfjsLib.OPS.paintImageXObject) {
-                        const imgName = opList.argsArray[i][0];
-                        const img = await new Promise(resolve => page.objs.get(imgName, data => resolve(data)));
-                        if (!img || !img.data) continue;
-                        await postAsset(img, pageNum, 'XObject', \`\${pageNum}-\${imgName}\`);
-                    }
-                }
-            } catch (e) { console.error(\`XObject extraction failed on page \${pageNum}: \${e}\`); }
-        }
+  function toggleSelect(id, multi=false){
+    if (!multi) state.selected.clear();
+    if (state.selected.has(id)) state.selected.delete(id);
+    else state.selected.add(id);
+    ui.downloadZip.disabled = state.selected.size===0;
+  }
 
-        async function extractAsRender(page, pageNum) {
-            try {
-                const viewport = page.getViewport({ scale: 2.0 });
-                const canvas = new OffscreenCanvas(viewport.width, viewport.height);
-                const context = canvas.getContext('2d');
-                await page.render({ canvasContext: context, viewport }).promise;
-                await postCanvas(canvas, pageNum, 'Render');
-            } catch (e) { console.error(\`Render extraction failed on page \${pageNum}: \${e}\`); }
-        }
+  function showDetails(a){
+    const bb = a.bbox;
+    ui.details.innerHTML = `
+      <div><strong>ID:</strong> ${a.id}</div>
+      <div><strong>Page:</strong> ${a.page}</div>
+      <div><strong>Pixels:</strong> ${a.width} × ${a.height} (${(a.area/1e6).toFixed(2)} MP)</div>
+      <div><strong>Aspect:</strong> ${a.aspect}</div>
+      <div><strong>Type:</strong> ${a.type}</div>
+      <div><strong>AI class:</strong> ${a.aiClass}</div>
+      <div><strong>BBox (page px):</strong> x=${bb.x.toFixed(1)}, y=${bb.y.toFixed(1)}, w=${bb.w.toFixed(1)}, h=${bb.h.toFixed(1)}</div>
+      <div style="margin-top:8px"><strong>OCR:</strong><br><pre style="white-space:pre-wrap;font-family:var(--mono);border:1px solid var(--border);padding:8px;border-radius:8px;max-height:180px;overflow:auto">${a.ocr ?? '—'}</pre></div>
+      <div style="margin-top:8px"><a href="${a.url}" download="${a.id}.png">Download PNG</a></div>
+    `;
+  }
 
-        async function extractAsSVG(page, pageNum) {
-            try {
-                const viewport = page.getViewport({ scale: 1.0 });
-                const svgGfx = new pdfjsLib.SVGGraphics(page.commonObjs, page.objs);
-                const svg = await svgGfx.getSVG(await page.getOperatorList(), viewport);
-                const svgString = new XMLSerializer().serializeToString(svg);
-                const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-                await postBlob(blob, pageNum, 'SVG', {width: Math.round(viewport.width), height: Math.round(viewport.height)});
-            } catch (e) { console.error(\`SVG extraction failed on page \${pageNum}: \${e}\`); }
-        }
+  async function renderPreview(pageNum, highlightId=null){
+    if (!state.pdf) return;
+    pageNum = Math.max(1, Math.min(state.numPages, pageNum));
+    state.currentPage = pageNum;
+    ui.pageHost.innerHTML = '';
 
-        async function extractVectorPaths(page, pageNum) {
-            try {
-                const viewport = page.getViewport({ scale: 1.5 });
-                const canvas = new OffscreenCanvas(viewport.width, viewport.height);
-                const context = canvas.getContext('2d');
-                const opList = await page.getOperatorList();
-                const pathOnlyOps = opList.fnArray.map((op) => {
-                    if (op === pdfjsLib.OPS.paintImageXObject || op === pdfjsLib.OPS.showText) {
-                        return pdfjsLib.OPS.dependency;
-                    }
-                    return op;
-                });
-                const pathOpList = { fnArray: pathOnlyOps, argsArray: opList.argsArray };
-                await new pdfjsLib.CanvasGraphics(context, page.commonObjs, page.objs, null).execute(pathOpList);
-                if (!context.getImageData(0, 0, 1, 1).data.every(p => p === 0)) {
-                    await postCanvas(canvas, pageNum, 'Vector Paths');
-                }
-            } catch (e) { console.error(\`Vector Path extraction failed on page \${pageNum}: \${e}\`); }
-        }
+    const pageInfo = state.pages.get(pageNum);
+    if (!pageInfo?.previewURL){
+      // If not rendered yet (should not happen), force render minimal view
+      const page = await state.pdf.getPage(pageNum);
+      const viewport = page.getViewport({scale:1.2});
+      const c = document.createElement('canvas');
+      c.className='pdf';
+      c.width = viewport.width|0; c.height = viewport.height|0;
+      await page.render({canvasContext:c.getContext('2d'), viewport}).promise;
+      pageInfo.width = c.width; pageInfo.height=c.height; pageInfo.scale=1.2;
+      pageInfo.previewURL = c.toDataURL('image/webp', 0.85);
+    }
+    const wrap = document.createElement('div');
+    wrap.className='pageWrap';
+    const img = document.createElement('img');
+    img.src = pageInfo.previewURL;
+    img.className='pdf';
+    img.style.display='block';
+    wrap.appendChild(img);
 
-        async function extractAnnotations(page, pageNum) {
-            try {
-                const annotations = await page.getAnnotations();
-                for (const annotation of annotations) {
-                    if (annotation.bitmapId) {
-                        const img = await new Promise(resolve => page.objs.get(annotation.bitmapId, data => resolve(data)));
-                        if (!img || !img.data) continue;
-                        await postAsset(img, pageNum, 'Annotation', \`\${pageNum}-\${annotation.id}\`);
-                    }
-                }
-            } catch (e) { console.error(\`Annotation extraction failed on page \${pageNum}: \${e}\`); }
-        }
-        
-        let assetCounter = 0;
-        async function postAsset(img, pageNum, method, idSuffix) {
-            const { width, height, data } = img;
-            const id = \`asset-\${assetCounter++}-\${idSuffix}\`;
-            const canvas = new OffscreenCanvas(width, height);
-            const ctx = canvas.getContext('2d');
-            const imgData = ctx.createImageData(width, height);
-            imgData.data.set(data);
-            ctx.putImageData(imgData, 0, 0);
-            await postCanvas(canvas, pageNum, method, id);
-        }
-        
-        async function postCanvas(canvas, pageNum, method, id = \`asset-\${assetCounter++}\`) {
-            const blob = await canvas.convertToBlob({type: 'image/png'});
-            await postBlob(blob, pageNum, method, {width: canvas.width, height: canvas.height}, id);
-        }
+    // Add bboxes for assets on this page
+    const assetsOnPage = state.assets.filter(a => a.page===pageNum);
+    for(const a of assetsOnPage){
+      const bb = a.bbox;
+      const box = document.createElement('div');
+      box.className='bbox';
+      box.style.left = `${bb.x}px`;
+      box.style.top = `${bb.y}px`;
+      box.style.width = `${bb.w}px`;
+      box.style.height = `${bb.h}px`;
+      if (a.id===highlightId){
+        box.style.boxShadow = '0 0 0 3px rgba(36,216,167,.9) inset';
+      }
+      box.title = `${a.id} (${a.width}×${a.height})`;
+      box.addEventListener('click', () => {
+        showDetails(a);
+        highlightInGallery(a.id);
+      });
+      wrap.appendChild(box);
+    }
 
-        async function postBlob(blob, pageNum, method, dims, id = \`asset-\${assetCounter++}\`) {
-            if (dims.width === 0 || dims.height === 0) return;
-            const src = URL.createObjectURL(blob);
-            self.postMessage({ type: 'asset_found', data: { id, src, ...dims, page: pageNum, method } });
-            
-            const analysisData = { id, classification: 'Unknown', p_hash: 'N/A', palette: [], ocrText: 'N/A' };
-            try {
-                const isSvg = blob.type.includes('svg');
-                const canvas = new OffscreenCanvas(dims.width, dims.height);
-                const ctx = canvas.getContext('2d');
-                const imgBitmap = await createImageBitmap(blob);
-                ctx.drawImage(imgBitmap, 0, 0);
-                
-                if (!isSvg) {
-                    try {
-                        const imgData = ctx.getImageData(0, 0, dims.width, dims.height);
-                        analysisData.p_hash = pHash(imgData);
-                        analysisData.palette = getPalette(imgData);
-                    } catch (e) { console.error(\`Analysis failed for \${id}: \${e}\`); }
-                    try {
-                        const { data: { text: ocrText } } = await Tesseract.recognize(canvas, 'eng');
-                        analysisData.ocrText = ocrText;
-                    } catch (e) { analysisData.ocrText = 'OCR Failed'; }
-                } else {
-                    analysisData.p_hash = 'svg_vector_' + Math.random();
-                    analysisData.ocrText = 'SVG (vector graphics)';
-                }
+    ui.pageHost.appendChild(wrap);
+    ui.pageInfo.textContent = `Page ${pageNum} / ${state.numPages}`;
+    ui.prev.disabled = pageNum<=1;
+    ui.next.disabled = pageNum>=state.numPages;
+  }
 
-                try {
-                    const predictions = await model.classify(canvas);
-                    analysisData.classification = predictions.length > 0 ? predictions[0].className.split(',')[0] : 'Unknown';
-                } catch (e) { analysisData.classification = 'AI Failed'; }
-                
-                self.postMessage({ type: 'analysis_complete', data: analysisData });
-            } catch (e) {
-                analysisData.classification = 'Analysis Failed';
-                self.postMessage({ type: 'analysis_complete', data: analysisData });
-            }
-        }
+  function highlightInGallery(id){
+    const el = document.querySelector(`[data-asset="${id}"]`);
+    if (!el) return;
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+    el.style.outline = `2px solid var(--accent)`;
+    setTimeout(()=> el.style.outline='none', 1200);
+  }
 
-        async function processPDF(pdfData) {
-            try {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
-                if (!model) {
-                    self.postMessage({ type: 'progress', data: { message: 'Loading AI model...', percent: 5 } });
-                    model = await mobilenet.load();
-                }
-                const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-                const numPages = pdf.numPages;
-                self.postMessage({ type: 'progress', data: { message: 'PDF loaded, starting deconstruction...', percent: 10 } });
+  function exportJSON(){
+    const manifest = state.assets.map(a => ({
+      id: a.id,
+      page: a.page,
+      type: a.type,
+      width: a.width,
+      height: a.height,
+      aspect: a.aspect,
+      bbox: a.bbox,
+      aiClass: a.aiClass,
+      ocr: a.ocr ?? null,
+      filename: `${a.id}.png`
+    }));
+    const blob = new Blob([JSON.stringify({ pages: state.numPages, assets: manifest }, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    downloadURL(url, 'pdf-image-manifest.json');
+  }
 
-                for (let i = 1; i <= numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    await Promise.all([
-                        extractXObjects(page, i),
-                        extractAsRender(page, i),
-                        extractAsSVG(page, i),
-                        extractVectorPaths(page, i),
-                        extractAnnotations(page, i)
-                    ]);
-                    self.postMessage({ type: 'progress', data: { message: \`Deconstructed page \${i}/\${numPages}\`, percent: 10 + (i / numPages) * 90 } });
-                }
-            } catch (e) {
-                self.postMessage({ type: 'error', data: \`PDF processing failed: \${e.message}\` });
-            }
-        }
+  async function downloadZIP(){
+    const zip = new JSZip();
+    const chosen = state.selected.size ? state.assets.filter(a=>state.selected.has(a.id)) : state.assets;
+    const manifest = [];
+    for(const a of chosen){
+      const ab = await a.blob.arrayBuffer();
+      zip.file(`${a.id}.png`, ab);
+      manifest.push({
+        id:a.id,page:a.page,type:a.type,width:a.width,height:a.height,aspect:a.aspect,bbox:a.bbox,aiClass:a.aiClass,ocr:a.ocr??null,filename:`${a.id}.png`
+      });
+    }
+    zip.file('manifest.json', JSON.stringify({pages: state.numPages, assets: manifest}, null, 2));
+    const out = await zip.generateAsync({type:'blob'});
+    const url = URL.createObjectURL(out);
+    downloadURL(url, `pdf-images-${Date.now()}.zip`);
+  }
 
-        self.onmessage = (e) => {
-            if (e.data.type === 'process') {
-                processPDF(e.data.pdfData);
-            }
-        };
-    </script>
+  function downloadURL(url, filename){
+    const a = document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }
 
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        let state = { assets: new Map(), selectedAssetIds: new Set(), lastSelectedId: null, filters: { type: 'all' }, sortBy: 'page' };
-        const workerBlob = new Blob([document.getElementById('worker-script').textContent], { type: 'application/javascript' });
-        const worker = new Worker(URL.createObjectURL(workerBlob));
-        
-        const ui = {
-            uploadZone: document.getElementById('upload-zone'),
-            uploadText: document.getElementById('upload-text'),
-            fileInput: document.getElementById('file-input'),
-            imageGrid: document.getElementById('image-grid'),
-            detailsPane: document.getElementById('details-pane'),
-            welcomeMessage: document.getElementById('welcome-message'),
-            progressContainer: document.getElementById('progress-container'),
-            progressBar: document.getElementById('progress-bar'),
-            progressLabel: document.getElementById('progress-label'),
-            filterType: document.getElementById('filter-type'),
-            sortBy: document.getElementById('sort-by'),
-            exportJsonBtn: document.getElementById('export-json-btn'),
-            downloadZipBtn: document.getElementById('download-zip-btn'),
-            controls: [document.getElementById('filter-type'), document.getElementById('sort-by'), document.getElementById('export-json-btn'), document.getElementById('download-zip-btn')]
-        };
+  // Start in dark
+  ui.body.classList.add('dark');
 
-        worker.onmessage = (e) => {
-            const { type, data } = e.data;
-            if (type === 'progress') updateProgress(data.percent, data.message);
-            else if (type === 'asset_found') handleAssetFound(data);
-            else if (type === 'analysis_complete') handleAnalysisComplete(data);
-            else if (type === 'error') { console.error('Worker Error:', data); updateProgress(100, \`Error: \${data}\`); }
-        };
-
-        ui.uploadZone.addEventListener('dragover', e => { e.preventDefault(); ui.uploadZone.classList.add('dragover'); });
-        ui.uploadZone.addEventListener('dragleave', () => ui.uploadZone.classList.remove('dragover'));
-        ui.uploadZone.addEventListener('drop', handleFileDrop);
-        ui.fileInput.addEventListener('change', e => handleFileSelect(e.target.files));
-        ui.filterType.addEventListener('change', (e) => { state.filters.type = e.target.value; renderGallery(); });
-        ui.sortBy.addEventListener('change', (e) => { state.sortBy = e.target.value; renderGallery(); });
-        ui.exportJsonBtn.addEventListener('click', exportDataAsJson);
-        ui.downloadZipBtn.addEventListener('click', downloadSelectedAsZip);
-
-        function handleFileDrop(e) {
-            e.preventDefault();
-            ui.uploadZone.classList.remove('dragover');
-            handleFileSelect(e.dataTransfer.files);
-        }
-
-        function handleFileSelect(files) {
-            const file = files[0];
-            if (!file || file.type !== 'application/pdf') {
-                alert('Invalid file type. Please select a PDF.');
-                return;
-            }
-            resetState();
-            ui.welcomeMessage.classList.add('hidden');
-            ui.uploadZone.classList.add('processing');
-            ui.uploadText.textContent = 'Processing...';
-            const fileReader = new FileReader();
-            fileReader.onload = (ev) => worker.postMessage({ type: 'process', pdfData: new Uint8Array(ev.target.result) });
-            fileReader.readAsArrayBuffer(file);
-        }
-
-        function resetState() {
-            state = { assets: new Map(), selectedAssetIds: new Set(), lastSelectedId: null, filters: { type: 'all' }, sortBy: 'page' };
-            ui.imageGrid.innerHTML = '';
-            ui.detailsPane.classList.add('hidden');
-            ui.filterType.innerHTML = '<option value="all">All Types</option>';
-            setControlsEnabled(false);
-            ui.uploadZone.classList.remove('processing');
-            ui.uploadText.textContent = 'Drag & Drop PDF here or click to select';
-        }
-
-        function setControlsEnabled(isEnabled) {
-            ui.controls.forEach(control => control.disabled = !isEnabled);
-        }
-
-        function updateProgress(percent, message) {
-            ui.progressContainer.classList.remove('hidden');
-            ui.progressBar.style.width = \`\${percent}%\`;
-            ui.progressLabel.textContent = message;
-            if (percent >= 100) {
-                setTimeout(() => ui.progressContainer.classList.add('hidden'), 2000);
-                setControlsEnabled(true);
-                ui.uploadZone.classList.remove('processing');
-                ui.uploadText.textContent = 'Select another PDF';
-            } else {
-                setControlsEnabled(false);
-            }
-        }
-
-        function handleAssetFound(data) {
-            state.assets.set(data.id, { ...data, analysis: null });
-            const card = document.createElement('div');
-            card.className = 'image-card';
-            card.id = data.id;
-            card.innerHTML = \`<img src="\${data.src}"><div class="spinner"></div>\`;
-            card.addEventListener('click', (e) => handleAssetSelection(e, data.id));
-            ui.imageGrid.appendChild(card);
-        }
-
-        function handleAnalysisComplete(data) {
-            const asset = state.assets.get(data.id);
-            if (!asset) return;
-            asset.analysis = data;
-            state.assets.set(data.id, asset);
-            const card = document.getElementById(data.id);
-            if (card) {
-                card.querySelector('.spinner')?.remove();
-                card.innerHTML += \`<div class="card-footer"><span>\${data.classification}</span><span>\${asset.method}</span></div>\`;
-            }
-            updateFilterOptions();
-            if (state.selectedAssetIds.has(data.id)) updateDetailsPane();
-        }
-
-        function renderGallery() {
-            let assets = Array.from(state.assets.values());
-            if (state.filters.type !== 'all') assets = assets.filter(a => a.analysis && a.analysis.classification === state.filters.type);
-            assets.sort((a, b) => {
-                if (state.sortBy === 'size') return (b.width * b.height) - (a.width * a.height);
-                if (state.sortBy === 'similarity' && a.analysis && b.analysis) return (a.analysis.p_hash || '').localeCompare(b.analysis.p_hash || '');
-                return a.page - b.page;
-            });
-            ui.imageGrid.innerHTML = '';
-            assets.forEach(asset => {
-                const card = document.createElement('div');
-                card.className = 'image-card';
-                card.id = asset.id;
-                if (state.selectedAssetIds.has(asset.id)) card.classList.add('selected');
-                let footer = asset.analysis ? \`<div class="card-footer"><span>\${asset.analysis.classification}</span><span>\${asset.method}</span></div>\` : '<div class="spinner"></div>';
-                card.innerHTML = \`<img src="\${asset.src}">\${footer}\`;
-                card.addEventListener('click', (e) => handleAssetSelection(e, asset.id));
-                ui.imageGrid.appendChild(card);
-            });
-        }
-
-        function handleAssetSelection(event, id) {
-            if (event.ctrlKey || event.metaKey) {
-                state.selectedAssetIds.has(id) ? state.selectedAssetIds.delete(id) : state.selectedAssetIds.add(id);
-            } else {
-                state.selectedAssetIds.clear();
-                state.selectedAssetIds.add(id);
-            }
-            state.lastSelectedId = id;
-            document.querySelectorAll('.image-card.selected').forEach(c => c.classList.remove('selected'));
-            state.selectedAssetIds.forEach(selId => document.getElementById(selId)?.classList.add('selected'));
-            updateDetailsPane();
-        }
-
-        function updateDetailsPane() {
-            ui.downloadZipBtn.disabled = state.selectedAssetIds.size === 0;
-            if (state.selectedAssetIds.size === 0) {
-                ui.detailsPane.classList.add('hidden');
-                return;
-            }
-            
-            if (state.selectedAssetIds.size > 1) {
-                ui.detailsPane.innerHTML = \`<h3>\${state.selectedAssetIds.size} Assets Selected</h3>\`;
-                ui.detailsPane.classList.remove('hidden');
-                return;
-            }
-
-            const asset = state.assets.get(state.lastSelectedId);
-            if (!asset) return;
-            
-            ui.detailsPane.innerHTML = \`
-                <h3>Asset Inspector</h3>
-                <img id="details-preview" src="\${asset.src}">
-                <div class="detail-item"><strong>AI Classification:</strong> <span id="details-type">\${asset.analysis?.classification || 'Analyzing...'}</span></div>
-                <div class="detail-item"><strong>Page:</strong> \${asset.page} | <strong>Method:</strong> \${asset.method}</div>
-                <div class="detail-item"><strong>Dimensions:</strong> \${asset.width} x \${asset.height}</div>
-                <div class="detail-item"><strong>Dominant Colors:</strong><div id="color-palette"></div></div>
-                <div class="detail-item"><strong>Recognized Text (OCR):</strong><div id="ocr-text">\${asset.analysis?.ocrText || 'Analyzing...'}</div></div>
-            \`;
-            const paletteContainer = ui.detailsPane.querySelector('#color-palette');
-            (asset.analysis?.palette || []).forEach(color => {
-                const swatch = document.createElement('div');
-                swatch.className = 'color-swatch';
-                swatch.style.backgroundColor = color;
-                paletteContainer.appendChild(swatch);
-            });
-            ui.detailsPane.classList.remove('hidden');
-        }
-
-        function updateFilterOptions() {
-            const types = new Set(Array.from(state.assets.values()).filter(a => a.analysis && a.analysis.classification).map(a => a.analysis.classification));
-            ui.filterType.innerHTML = '<option value="all">All Types</option>';
-            types.forEach(type => {
-                const option = document.createElement('option');
-                option.value = type;
-                option.textContent = type;
-                ui.filterType.appendChild(option);
-            });
-        }
-
-        function exportDataAsJson() {
-            const data = JSON.stringify(Array.from(state.assets.values()), (key, value) => value instanceof Map ? Object.fromEntries(value) : value, 2);
-            const blob = new Blob([data], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'pdf_forensics_export.json';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        async function downloadSelectedAsZip() {
-            if (state.selectedAssetIds.size === 0) return;
-            const zip = new JSZip();
-            for (const id of state.selectedAssetIds) {
-                const asset = state.assets.get(id);
-                if (!asset) continue;
-                const response = await fetch(asset.src);
-                const blob = await response.blob();
-                const extension = asset.method === 'SVG' ? 'svg' : 'png';
-                zip.file(\`p\${asset.page}_m\${asset.method}_\${asset.id}.\${extension}\`, blob);
-            }
-            zip.generateAsync({ type: "blob" }).then(content => {
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(content);
-                link.download = "selected_assets.zip";
-                link.click();
-                URL.revokeObjectURL(link.href);
-            });
-        }
-    });
-    </script>
+})();
+</script>
 </body>
 </html>
