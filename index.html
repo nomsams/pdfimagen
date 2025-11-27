@@ -3,196 +3,258 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>PDF Image Extractor • Pro</title>
+<title>PDF Image Extractor • Ultimate</title>
 
-<!-- pdf.js (stable 2.16.105) -->
+<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>
   (function ensurePdfjsReady(){
     const lib = window.pdfjsLib;
     if (!lib) { return setTimeout(ensurePdfjsReady, 30); }
     lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-    window.PDFJS = lib;
   })();
 </script>
 
-<!-- ZIP & OCR -->
+<!-- Utilities -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
 
 <style>
-  :root{
-    --bg:#0f1115; --tx:#e7e7ea; --bd:#2a2f3a; --sf:#171a21;
-    --pri:#5aa9ff; --pri-hov:#4a90e2; --ok:#24d8a7; --err:#ff6161;
-    --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    --mono:ui-monospace,Menlo,Consolas,monospace;
+  :root {
+    --bg: #121212; --surf: #1e1e1e; --surf-2: #2c2c2c;
+    --txt: #e0e0e0; --txt-dim: #a0a0a0;
+    --acc: #4caf50; --acc-hov: #43a047;
+    --sel: #2196f3; --err: #f44336;
+    --border: #333;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
-  *{box-sizing:border-box; outline:none;}
-  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--sans);display:grid;grid-template-columns:320px 1fr 350px;grid-template-rows:60px 1fr;grid-template-areas:"top top top" "left main right";height:100vh;overflow:hidden;}
-  
+  * { box-sizing: border-box; outline: none; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt); font-family: var(--font);
+    display: grid; height: 100vh; overflow: hidden;
+    grid-template-columns: 300px 1fr 320px;
+    grid-template-rows: 50px 1fr;
+    grid-template-areas: "head head head" "left main right";
+  }
+
   /* Header */
-  header{grid-area:top;display:flex;gap:16px;align-items:center;border-bottom:1px solid var(--bd);padding:0 20px;background:var(--sf);}
-  header h1{font-size:18px;font-weight:600;margin:0;color:#fff;letter-spacing:-0.5px;}
-  .badge{background:var(--bd);padding:4px 8px;border-radius:6px;font-size:12px;color:#999;}
-  
-  /* Layout Columns */
-  #left{grid-area:left;border-right:1px solid var(--bd);padding:16px;overflow-y:auto;background:var(--sf);display:flex;flex-direction:column;gap:20px;}
-  #right{grid-area:right;border-left:1px solid var(--bd);padding:0;overflow-y:auto;background:var(--sf);display:flex;flex-direction:column;}
-  #main{grid-area:main;display:flex;flex-direction:column;min-width:0;background:var(--bg);position:relative;}
+  header {
+    grid-area: head; background: var(--surf); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px; justify-content: space-between;
+  }
+  h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: 0.5px; }
+  #status { font-size: 13px; color: var(--txt-dim); font-family: monospace; }
+
+  /* Layout */
+  aside { background: var(--surf); overflow-y: auto; display: flex; flex-direction: column; }
+  #left { grid-area: left; border-right: 1px solid var(--border); padding: 15px; gap: 15px; }
+  #right { grid-area: right; border-left: 1px solid var(--border); }
+  #main { grid-area: main; background: var(--bg); display: flex; flex-direction: column; position: relative; }
 
   /* Drop Zone */
-  .drop{border:2px dashed var(--bd);border-radius:12px;padding:30px 20px;text-align:center;cursor:pointer;transition:all .2s;}
-  .drop:hover{border-color:var(--pri);background:rgba(90,169,255,.05);}
-  .drop.drag{border-color:var(--ok);background:rgba(36,216,167,.1);}
-  .drop strong{display:block;font-size:16px;margin-bottom:4px;color:#fff;}
-  .muted{color:#8b949e;font-size:13px;}
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 20px;
+    text-align: center; cursor: pointer; transition: 0.2s; background: var(--surf-2);
+  }
+  .drop-zone:hover { border-color: var(--acc); background: rgba(76,175,80,0.1); }
+  .drop-zone.drag { border-color: var(--sel); background: rgba(33,150,243,0.1); }
+  .drop-zone svg { width: 32px; height: 32px; color: var(--txt-dim); margin-bottom: 8px; }
+  .drop-zone strong { display: block; font-size: 14px; margin-bottom: 4px; }
+  .drop-zone span { font-size: 12px; color: var(--txt-dim); }
 
   /* Progress */
-  .progress-wrap{background:#1d2230;height:6px;border-radius:99px;overflow:hidden;margin-top:10px;}
-  .bar{height:100%;width:0;background:var(--pri);transition:width .2s ease-out;}
-  
+  .progress-container { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; display: none; }
+  .progress-bar { height: 100%; background: var(--acc); width: 0%; transition: width 0.1s; }
+
   /* Controls */
-  .control-group{display:grid;gap:8px;}
-  .control-group label{font-size:12px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;}
-  select, button{background:var(--bd);border:1px solid transparent;color:var(--tx);padding:10px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;transition:all .2s;}
-  select:hover, button:hover{border-color:var(--pri);}
-  button.primary{background:var(--pri);color:#000;font-weight:600;}
-  button.primary:hover{background:var(--pri-hov);}
-  button:disabled{opacity:0.5;cursor:not-allowed;filter:grayscale(1);}
+  .control-block { display: flex; flex-direction: column; gap: 8px; }
+  .control-label { font-size: 11px; text-transform: uppercase; color: var(--txt-dim); font-weight: bold; }
+  .btn-group { display: flex; gap: 8px; }
   
+  button, select {
+    background: var(--surf-2); border: 1px solid var(--border); color: var(--txt);
+    padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; flex: 1;
+    transition: 0.2s;
+  }
+  button:hover, select:hover { border-color: var(--txt-dim); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--acc); color: #fff; border: none; }
+  button.primary:hover { background: var(--acc-hov); }
+
   /* Tabs */
-  .tabs{display:flex;border-bottom:1px solid var(--bd);background:var(--sf);}
-  .tabs button{background:transparent;border:none;border-bottom:2px solid transparent;border-radius:0;flex:1;padding:14px;color:#8b949e;font-weight:500;}
-  .tabs button:hover{color:#fff;}
-  .tabs button.active{color:var(--pri);border-bottom-color:var(--pri);}
+  .tabs { display: flex; background: var(--surf); border-bottom: 1px solid var(--border); }
+  .tab {
+    flex: 1; padding: 12px; background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--txt-dim); font-weight: 500; border-radius: 0;
+  }
+  .tab:hover { color: var(--txt); }
+  .tab.active { color: var(--acc); border-bottom-color: var(--acc); }
 
-  /* Gallery */
-  #gallery{padding:20px;overflow-y:auto;height:100%;}
-  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px;}
+  /* Gallery Grid */
+  #gallery { padding: 15px; overflow-y: auto; flex: 1; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
   
-  .card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;overflow:hidden;transition:transform .1s, border-color .1s;position:relative;}
-  .card:hover{transform:translateY(-2px);border-color:var(--pri);}
-  .card.selected{border-color:var(--pri);box-shadow:0 0 0 1px var(--pri);}
+  .card {
+    background: var(--surf); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; position: relative; transition: 0.2s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--txt-dim); }
+  .card.selected { border-color: var(--sel); box-shadow: 0 0 0 1px var(--sel); }
   
-  .thumb{height:120px;background:#12151c url('data:image/svg+xml,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0zm10 10h10v10H10z" fill="%231a1d26" fill-rule="evenodd"/></svg>');display:flex;align-items:center;justify-content:center;position:relative;}
-  .thumb img{max-width:100%;max-height:100%;object-fit:contain;}
+  .thumb {
+    height: 120px; background: #000; display: flex; align-items: center; justify-content: center;
+    background-image: radial-gradient(#333 1px, transparent 1px); background-size: 10px 10px;
+  }
+  .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
   
-  .card-actions{position:absolute;top:6px;right:6px;display:flex;gap:4px;}
-  .icon-btn{width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;backdrop-filter:blur(4px);}
-  .icon-btn:hover{background:var(--pri);color:#000;}
+  .meta { padding: 8px; font-size: 11px; color: var(--txt-dim); border-top: 1px solid var(--border); }
+  .meta-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  
+  .card-overlay {
+    position: absolute; top: 5px; right: 5px; display: flex; gap: 5px; opacity: 0; transition: 0.2s;
+  }
+  .card:hover .card-overlay { opacity: 1; }
+  .icon-btn {
+    width: 24px; height: 24px; padding: 0; display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; background: rgba(0,0,0,0.7); color: #fff; border: none;
+  }
+  .icon-btn:hover { background: var(--acc); }
 
-  .meta{padding:10px;font-size:11px;color:#8b949e;}
-  .meta div{display:flex;justify-content:space-between;margin-bottom:2px;}
-  .meta strong{color:#fff;}
-
-  .select-check{padding:10px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
-  .select-check:hover{background:#1d2230;}
-  .chk{width:16px;height:16px;border:2px solid var(--bd);border-radius:4px;display:flex;align-items:center;justify-content:center;}
-  .card.selected .chk{background:var(--pri);border-color:var(--pri);}
-  .card.selected .chk::after{content:'✓';color:#000;font-size:12px;font-weight:bold;}
+  .select-area {
+    padding: 8px; background: var(--surf-2); cursor: pointer; display: flex; align-items: center; gap: 8px;
+    font-size: 11px; border-top: 1px solid var(--border);
+  }
+  .checkbox {
+    width: 14px; height: 14px; border: 1px solid var(--txt-dim); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card.selected .checkbox { background: var(--sel); border-color: var(--sel); }
+  .card.selected .checkbox::after { content: "✓"; font-size: 10px; color: #fff; }
 
   /* Preview */
-  #preview{padding:20px;overflow:auto;height:100%;display:none;text-align:center;}
-  .page-wrap{position:relative;display:inline-block;margin-bottom:20px;box-shadow:0 10px 40px rgba(0,0,0,0.5);}
-  .page-wrap canvas{display:block;border-radius:4px;}
-  .bbox{position:absolute;border:2px solid var(--pri);background:rgba(90,169,255,0.2);cursor:pointer;transition:background .2s;}
-  .bbox:hover{background:rgba(90,169,255,0.4);z-index:10;}
-  .bbox.active{border-color:var(--ok);background:rgba(36,216,167,0.3);box-shadow:0 0 0 2px rgba(0,0,0,0.5);}
+  #preview { flex: 1; overflow: auto; background: #000; display: none; padding: 20px; text-align: center; }
+  .page-container { position: relative; display: inline-block; margin-bottom: 20px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+  .page-canvas { display: block; max-width: 100%; }
+  .highlight-box {
+    position: absolute; border: 2px solid var(--sel); background: rgba(33,150,243,0.2);
+    cursor: pointer; transition: 0.2s;
+  }
+  .highlight-box:hover { background: rgba(33,150,243,0.4); z-index: 10; }
+  .highlight-box.active { border-color: var(--acc); background: rgba(76,175,80,0.3); box-shadow: 0 0 0 2px #fff; z-index: 20; }
 
   /* Details Pane */
-  .details-head{padding:16px;border-bottom:1px solid var(--bd);}
-  .details-body{padding:16px;flex:1;overflow-y:auto;}
-  .prop-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd);font-size:13px;}
-  .prop-row span:first-child{color:#8b949e;}
-  .ocr-box{background:#12151c;padding:10px;border-radius:8px;font-family:var(--mono);font-size:12px;margin-top:10px;white-space:pre-wrap;border:1px solid var(--bd);min-height:60px;}
+  .details-content { padding: 15px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .detail-row span:first-child { color: var(--txt-dim); }
+  .preview-lg { width: 100%; height: 200px; object-fit: contain; background: #000; border-radius: 6px; margin-bottom: 15px; border: 1px solid var(--border); }
+  .ocr-result {
+    margin-top: 10px; padding: 10px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; font-family: monospace; font-size: 11px; white-space: pre-wrap; min-height: 50px;
+  }
 
-  /* Utility */
-  .hidden{display:none!important;}
-  .err-msg{background:rgba(255,97,97,0.1);border:1px solid var(--err);color:var(--err);padding:12px;border-radius:8px;font-size:13px;margin-top:10px;}
+  /* Welcome State */
+  #welcome {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; color: var(--txt-dim); cursor: pointer;
+  }
+  #welcome svg { width: 64px; height: 64px; margin-bottom: 15px; color: var(--border); }
+  #welcome:hover svg { color: var(--acc); }
+
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>PDF Image Extractor</h1>
-  <span class="badge">v3.0 Pro</span>
-  <div style="flex:1"></div>
-  <div class="muted" id="status">Ready</div>
+  <h1>PDF Image Extractor <span style="color:var(--acc); font-size:12px; margin-left:5px">Ultimate</span></h1>
+  <div id="status">Idle</div>
 </header>
 
 <aside id="left">
   <!-- Upload -->
-  <div>
-    <label class="drop" id="dropZone">
-      <strong>Click or Drop PDF</strong>
-      <span class="muted">Analyze & Extract</span>
-    </label>
-    <input id="fileInput" type="file" accept="application/pdf" hidden>
-    <div class="progress-wrap"><div class="bar" id="progressBar"></div></div>
-    <div id="errorBox" class="err-msg hidden"></div>
+  <div class="drop-zone" id="dropZone">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="17 8 12 3 7 8"></polyline>
+      <line x1="12" y1="3" x2="12" y2="15"></line>
+    </svg>
+    <strong>Click or Drop PDF</strong>
+    <span>Fast & Secure (Local)</span>
+  </div>
+  <input type="file" id="fileInput" accept="application/pdf" hidden>
+  
+  <div class="progress-container" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
   </div>
 
   <!-- Filters -->
-  <div class="control-group">
-    <label>Filter & Sort</label>
-    <div style="display:flex;gap:8px">
-      <select id="filterType" style="flex:1">
-        <option value="all">All Types</option>
-        <option value="image">Images</option>
-        <option value="mask">Masks/Stencil</option>
+  <div class="control-block">
+    <div class="control-label">Filter & Sort</div>
+    <div class="btn-group">
+      <select id="filterType">
+        <option value="all">All Assets</option>
+        <option value="image">Images Only</option>
+        <option value="small">Icons/Small</option>
       </select>
-      <select id="sortType" style="flex:1">
-        <option value="page">Page Order</option>
-        <option value="size">Largest Size</option>
+    </div>
+    <div class="btn-group">
+      <select id="sortType">
+        <option value="page">By Page</option>
+        <option value="size">By Size (Area)</option>
       </select>
     </div>
   </div>
 
   <!-- Actions -->
-  <div class="control-group">
-    <label>Selection Actions</label>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <button id="btnSelectAll" style="flex:1">Select All</button>
-      <button id="btnDeselectAll" style="flex:1">None</button>
+  <div class="control-block">
+    <div class="control-label">Selection</div>
+    <div class="btn-group">
+      <button id="btnSelAll">All</button>
+      <button id="btnSelNone">None</button>
     </div>
-    <button id="btnDownloadZip" class="primary" disabled>Download Selected (ZIP)</button>
-    <button id="btnDownloadSeparate" disabled>Download Selected (Separate)</button>
-    <button id="btnExportJson" disabled>Export JSON Manifest</button>
+    <button id="btnDlZip" class="primary" disabled>Download ZIP</button>
+    <button id="btnDlSep" disabled>Download Separate</button>
   </div>
 </aside>
 
 <main id="main">
   <div class="tabs">
-    <button class="active" data-tab="gallery">Asset Gallery (<span id="countGallery">0</span>)</button>
-    <button data-tab="preview">Interactive Preview</button>
+    <button class="tab active" data-target="gallery">Gallery (<span id="count">0</span>)</button>
+    <button class="tab" data-target="preview">Interactive Preview</button>
   </div>
-  
+
   <div id="gallery">
-    <div id="welcome" style="text-align:center;margin-top:60px;color:#8b949e">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-      <p>Load a PDF to view and extract images.</p>
+    <div id="welcome">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+        <polyline points="21 15 16 10 5 21"></polyline>
+      </svg>
+      <p>Click here or drag a PDF to start</p>
     </div>
-    <div id="grid"></div>
+    <div class="grid" id="grid"></div>
   </div>
 
   <div id="preview"></div>
 </main>
 
 <aside id="right">
-  <div class="details-head">
-    <h3>Asset Details</h3>
+  <div class="tabs" style="justify-content: center; padding: 12px; font-size: 12px; color: var(--txt-dim); border-bottom: 1px solid var(--border);">
+    DETAILS
   </div>
-  <div class="details-body" id="detailsPane">
-    <div class="muted" style="text-align:center;margin-top:40px">Select an image to view details.</div>
+  <div class="details-content" id="details">
+    <div style="text-align:center; color: var(--txt-dim); margin-top: 20px;">
+      Select an image to view details.
+    </div>
   </div>
 </aside>
 
 <script>
 (() => {
-  // --- State & Config ---
+  // --- State ---
   const state = {
     pdf: null,
-    assets: [], // { id, page, width, height, blob, url, transform, type }
+    assets: [], // { id, page, width, height, blob, url, x, y, w, h }
     pages: [],  // { w, h, viewport }
     selected: new Set(),
     abortCtrl: null
@@ -200,342 +262,304 @@
 
   const ui = {
     drop: document.getElementById('dropZone'),
+    welcome: document.getElementById('welcome'),
     file: document.getElementById('fileInput'),
     bar: document.getElementById('progressBar'),
+    barWrap: document.getElementById('progressWrap'),
     status: document.getElementById('status'),
-    err: document.getElementById('errorBox'),
     grid: document.getElementById('grid'),
     preview: document.getElementById('preview'),
-    details: document.getElementById('detailsPane'),
-    tabs: document.querySelectorAll('.tabs button'),
-    welcome: document.getElementById('welcome'),
-    count: document.getElementById('countGallery'),
-    // Buttons
-    dlZip: document.getElementById('btnDownloadZip'),
-    dlSep: document.getElementById('btnDownloadSeparate'),
-    exJson: document.getElementById('btnExportJson'),
-    selAll: document.getElementById('btnSelectAll'),
-    deSel: document.getElementById('btnDeselectAll'),
+    details: document.getElementById('details'),
+    count: document.getElementById('count'),
+    tabs: document.querySelectorAll('.tab'),
+    // Controls
     filter: document.getElementById('filterType'),
     sort: document.getElementById('sortType'),
+    selAll: document.getElementById('btnSelAll'),
+    selNone: document.getElementById('btnSelNone'),
+    dlZip: document.getElementById('btnDlZip'),
+    dlSep: document.getElementById('btnDlSep'),
   };
 
-  // --- Initialization ---
-  ui.drop.addEventListener('click', () => ui.file.click());
-  ui.drop.addEventListener('dragover', e => { e.preventDefault(); ui.drop.classList.add('drag'); });
-  ui.drop.addEventListener('dragleave', () => ui.drop.classList.remove('drag'));
-  ui.drop.addEventListener('drop', e => { e.preventDefault(); ui.drop.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
-  ui.file.addEventListener('change', e => handleFile(e.target.files[0]));
+  // --- Event Listeners ---
+  
+  // Drag & Drop / File Input
+  const openFile = () => ui.file.click();
+  ui.drop.addEventListener('click', openFile);
+  ui.welcome.addEventListener('click', openFile);
+  ui.file.addEventListener('change', e => loadPDF(e.target.files[0]));
+  
+  ['dragenter', 'dragover'].forEach(e => {
+    ui.drop.addEventListener(e, ev => { ev.preventDefault(); ui.drop.classList.add('drag'); });
+    document.body.addEventListener(e, ev => ev.preventDefault()); // Prevent browser open
+  });
+  ['dragleave', 'drop'].forEach(e => {
+    ui.drop.addEventListener(e, ev => { ev.preventDefault(); ui.drop.classList.remove('drag'); });
+  });
+  ui.drop.addEventListener('drop', e => loadPDF(e.dataTransfer.files[0]));
+  document.body.addEventListener('drop', e => { e.preventDefault(); if(e.target === ui.welcome) loadPDF(e.dataTransfer.files[0]); });
 
-  ui.tabs.forEach(b => b.addEventListener('click', () => {
-    ui.tabs.forEach(t => t.classList.remove('active'));
-    b.classList.add('active');
-    const tab = b.dataset.tab;
-    ui.gallery.style.display = tab === 'gallery' ? 'block' : 'none';
-    ui.preview.style.display = tab === 'preview' ? 'block' : 'none';
-    if (tab === 'preview') renderPreview();
+  // Tabs
+  ui.tabs.forEach(t => t.addEventListener('click', () => {
+    ui.tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    const target = t.dataset.target;
+    document.getElementById('gallery').style.display = target === 'gallery' ? 'block' : 'none';
+    document.getElementById('preview').style.display = target === 'preview' ? 'block' : 'none';
+    if (target === 'preview') renderPreview();
   }));
 
+  // Controls
   ui.filter.addEventListener('change', renderGrid);
   ui.sort.addEventListener('change', renderGrid);
-  ui.selAll.addEventListener('click', () => { state.assets.forEach(a => state.selected.add(a.id)); updateSelectionUI(); });
-  ui.deSel.addEventListener('click', () => { state.selected.clear(); updateSelectionUI(); });
-  
+  ui.selAll.addEventListener('click', () => { state.assets.forEach(a => state.selected.add(a.id)); updateSelection(); });
+  ui.selNone.addEventListener('click', () => { state.selected.clear(); updateSelection(); });
   ui.dlZip.addEventListener('click', () => downloadBatch(true));
   ui.dlSep.addEventListener('click', () => downloadBatch(false));
-  ui.exJson.addEventListener('click', exportJSON);
 
   // --- Core Logic ---
 
-  async function handleFile(file) {
+  async function loadPDF(file) {
     if (!file || file.type !== 'application/pdf') return alert('Please select a PDF file.');
-    
-    // Reset
+
+    // Reset UI
     if (state.abortCtrl) state.abortCtrl.abort();
     state.abortCtrl = new AbortController();
     state.assets.forEach(a => URL.revokeObjectURL(a.url));
     state.assets = [];
     state.pages = [];
     state.selected.clear();
-    state.pdf = null;
-    
     ui.grid.innerHTML = '';
     ui.preview.innerHTML = '';
-    ui.details.innerHTML = '<div class="muted" style="text-align:center;margin-top:40px">Select an image...</div>';
     ui.welcome.style.display = 'none';
-    ui.err.classList.add('hidden');
-    updateSelectionUI();
+    ui.barWrap.style.display = 'block';
+    ui.bar.style.width = '0%';
+    updateSelection();
 
     try {
-      ui.status.textContent = 'Loading PDF...';
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      state.pdf = await loadingTask.promise;
+      ui.status.textContent = 'Reading file...';
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument(buf).promise;
+      state.pdf = pdf;
+
+      ui.status.textContent = `Scanning ${pdf.numPages} pages...`;
       
-      ui.status.textContent = `Scanning ${state.pdf.numPages} pages...`;
-      
-      for (let i = 1; i <= state.pdf.numPages; i++) {
+      for (let i = 1; i <= pdf.numPages; i++) {
         if (state.abortCtrl.signal.aborted) return;
-        ui.bar.style.width = `${(i / state.pdf.numPages) * 100}%`;
-        await extractFromPage(i);
+        ui.bar.style.width = `${(i / pdf.numPages) * 100}%`;
+        await extractPage(i);
       }
-      
+
       ui.status.textContent = `Done. Found ${state.assets.length} images.`;
+      ui.barWrap.style.display = 'none';
       renderGrid();
+
     } catch (e) {
       console.error(e);
-      ui.err.textContent = e.message;
-      ui.err.classList.remove('hidden');
-      ui.status.textContent = 'Error';
+      ui.status.textContent = 'Error: ' + e.message;
     }
   }
 
-  // --- The Heavy Lifter: Operator List Parsing ---
-  async function extractFromPage(pageNum) {
+  async function extractPage(pageNum) {
     const page = await state.pdf.getPage(pageNum);
-    const ops = await page.getOperatorList();
-    const commonObjs = page.commonObjs;
-    const objs = page.objs;
-    
-    // Store page info for preview
-    const viewport = page.getViewport({ scale: 1.5 }); // Preview scale
+    const viewport = page.getViewport({ scale: 1.5 }); // Good scale for preview
     state.pages[pageNum] = { w: viewport.width, h: viewport.height, viewport, pageObj: page };
 
-    // Matrix State Machine
-    let transformStack = [];
-    let currentMatrix = [1, 0, 0, 1, 0, 0]; // Identity
-
-    // Helper to multiply matrices
-    const multiply = (m1, m2) => [
-      m1[0]*m2[0] + m1[2]*m2[1],
-      m1[1]*m2[0] + m1[3]*m2[1],
-      m1[0]*m2[2] + m1[2]*m2[3],
-      m1[1]*m2[2] + m1[3]*m2[3],
-      m1[0]*m2[4] + m1[2]*m2[5] + m1[4],
-      m1[1]*m2[4] + m1[3]*m2[5] + m1[5]
-    ];
-
-    for (let i = 0; i < ops.fnArray.length; i++) {
-      const fn = ops.fnArray[i];
-      const args = ops.argsArray[i];
-
-      // Track Transforms
-      if (fn === pdfjsLib.OPS.save) {
-        transformStack.push([...currentMatrix]);
-      } else if (fn === pdfjsLib.OPS.restore) {
-        if (transformStack.length) currentMatrix = transformStack.pop();
-      } else if (fn === pdfjsLib.OPS.transform) {
-        currentMatrix = multiply(currentMatrix, args);
-      }
-      
-      // Detect Images
-      else if (fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintInlineImageXObject) {
-        const imgName = args[0];
-        
-        // Retrieve Image Data
-        let imgObj;
-        try {
-          imgObj = await objs.get(imgName);
-        } catch(e) { continue; } // Skip if missing
-
-        if (imgObj) {
-          await processImage(imgObj, pageNum, currentMatrix, imgName);
-        }
-      }
-    }
-  }
-
-  async function processImage(imgObj, pageNum, matrix, name) {
-    // Convert raw PDF image data to a Blob/URL
-    const width = imgObj.width;
-    const height = imgObj.height;
-    
-    if (!width || !height) return;
-
-    // Create an offscreen canvas to convert data to PNG
+    // 1. Setup Interception
+    // We create a dummy canvas context to intercept drawImage calls.
+    // This ensures we get the SOURCE image (full res) not the drawn result.
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
     const ctx = canvas.getContext('2d');
+    
+    // Store original drawImage
+    const origDrawImage = ctx.drawImage;
+    
+    let imgCount = 0;
 
-    // Handle different data types from PDF.js
-    if (imgObj.bitmap) {
-      ctx.drawImage(imgObj.bitmap, 0, 0);
-    } else if (imgObj.data) {
-      // Raw RGBA or RGB
-      const kind = imgObj.kind || (imgObj.data.length === width * height * 4 ? 'RGBA' : 'RGB');
-      let imageData = ctx.createImageData(width, height);
-      
-      if (kind === 'RGB' || imgObj.data.length === width * height * 3) {
-        let j = 0;
-        for (let i = 0; i < imgObj.data.length; i += 3) {
-          imageData.data[j++] = imgObj.data[i];
-          imageData.data[j++] = imgObj.data[i+1];
-          imageData.data[j++] = imgObj.data[i+2];
-          imageData.data[j++] = 255;
-        }
-      } else {
-        // Assume RGBA
-        for (let i = 0; i < imgObj.data.length; i++) {
-          imageData.data[i] = imgObj.data[i];
-        }
-      }
-      ctx.putImageData(imageData, 0, 0);
-    } else {
-      return; // Unknown format
-    }
+    ctx.drawImage = function(...args) {
+      // args[0] is the source image (Image, Canvas, or ImageBitmap)
+      const img = args[0];
+      if (!img || !img.width || !img.height) return;
 
-    // Create Blob
-    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-    const url = URL.createObjectURL(blob);
+      // Filter out tiny things (likely text artifacts or lines)
+      if (img.width < 20 || img.height < 20) return;
+
+      // Capture coordinates for Preview
+      // drawImage(img, dx, dy)
+      // drawImage(img, dx, dy, dw, dh)
+      // drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)
+      let dx=0, dy=0, dw=img.width, dh=img.height;
+
+      if (args.length === 3) { dx=args[1]; dy=args[2]; }
+      else if (args.length === 5) { dx=args[1]; dy=args[2]; dw=args[3]; dh=args[4]; }
+      else if (args.length === 9) { dx=args[5]; dy=args[6]; dw=args[7]; dh=args[8]; }
+
+      // Process the image
+      processAsset(img, pageNum, ++imgCount, {x:dx, y:dy, w:dw, h:dh});
+    };
+
+    // 2. Render the page to the dummy context
+    // This triggers our intercepted drawImage for every image on the page
+    await page.render({ canvasContext: ctx, viewport }).promise;
     
-    // Calculate BBox in PDF Page Space (0,0 to 1,1 transformed)
-    // We only need the matrix to calculate where it lands on the page later
-    
-    const id = `p${pageNum}_${state.assets.length + 1}`;
-    
-    state.assets.push({
-      id,
-      page: pageNum,
-      width,
-      height,
-      area: width * height,
-      blob,
-      url,
-      matrix: [...matrix], // Store matrix for preview positioning
-      type: (width < 50 || height < 50) ? 'mask' : 'image', // Simple heuristic
-      ocr: null
-    });
+    // Restore (not strictly necessary as we discard ctx, but good practice)
+    ctx.drawImage = origDrawImage;
   }
 
-  // --- Rendering UI ---
+  async function processAsset(source, pageNum, seq, coords) {
+    // Create a temporary canvas to extract the image data as PNG
+    const c = document.createElement('canvas');
+    c.width = source.width;
+    c.height = source.height;
+    const cx = c.getContext('2d');
+    cx.drawImage(source, 0, 0);
+
+    c.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const id = `p${pageNum}-${seq}`;
+      
+      state.assets.push({
+        id,
+        page: pageNum,
+        width: source.width,
+        height: source.height,
+        area: source.width * source.height,
+        blob,
+        url,
+        coords // {x, y, w, h} in Viewport pixels
+      });
+      
+      // Update count live
+      ui.count.textContent = state.assets.length;
+    }, 'image/png');
+  }
+
+  // --- Rendering ---
 
   function renderGrid() {
     const filter = ui.filter.value;
     const sort = ui.sort.value;
     
-    let list = state.assets.filter(a => filter === 'all' || a.type === filter);
-    
+    let list = [...state.assets];
+
+    // Filter
+    if (filter === 'image') list = list.filter(a => a.width > 100 && a.height > 100);
+    if (filter === 'small') list = list.filter(a => a.width <= 100 || a.height <= 100);
+
+    // Sort
     if (sort === 'size') list.sort((a,b) => b.area - a.area);
     else list.sort((a,b) => a.page - b.page || a.id.localeCompare(b.id));
 
     ui.grid.innerHTML = '';
-    ui.count.textContent = list.length;
-
+    
     list.forEach(asset => {
       const el = document.createElement('div');
       el.className = `card ${state.selected.has(asset.id) ? 'selected' : ''}`;
       el.onclick = (e) => {
-        if(!e.target.closest('button') && !e.target.closest('.select-check')) {
-          showDetails(asset);
-        }
+        if(e.target.closest('.icon-btn') || e.target.closest('.select-area')) return;
+        showDetails(asset);
       };
 
       el.innerHTML = `
-        <div class="card-actions">
-          <button class="icon-btn" title="Download" onclick="downloadSingle('${asset.id}')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        <div class="card-overlay">
+          <button class="icon-btn" onclick="downloadOne('${asset.id}')" title="Download">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           </button>
         </div>
         <div class="thumb"><img src="${asset.url}" loading="lazy"></div>
         <div class="meta">
-          <div><strong>${asset.width} × ${asset.height}</strong> <span>P.${asset.page}</span></div>
-          <div class="muted">${(asset.blob.size/1024).toFixed(1)} KB</div>
+          <div class="meta-row">
+            <span style="color:#fff">${asset.width}×${asset.height}</span>
+            <span>P.${asset.page}</span>
+          </div>
+          <div class="meta-row">
+            <span>${(asset.blob.size/1024).toFixed(0)} KB</span>
+            <span>PNG</span>
+          </div>
         </div>
-        <div class="select-check" onclick="toggleSelect('${asset.id}', this)">
-          <div class="chk"></div>
+        <div class="select-area" onclick="toggleSel('${asset.id}', this)">
+          <div class="checkbox"></div>
           <span>Select</span>
         </div>
       `;
       ui.grid.appendChild(el);
     });
-    updateSelectionUI();
+    updateSelection();
   }
 
-  window.toggleSelect = (id, el) => {
+  window.toggleSel = (id, el) => {
     if (state.selected.has(id)) state.selected.delete(id);
     else state.selected.add(id);
-    
-    // Update visual state immediately
-    const card = el.closest('.card');
-    card.classList.toggle('selected', state.selected.has(id));
-    updateSelectionUI();
+    el.closest('.card').classList.toggle('selected', state.selected.has(id));
+    updateSelection();
   };
 
-  function updateSelectionUI() {
-    const count = state.selected.size;
-    const hasAssets = state.assets.length > 0;
-    
-    ui.dlZip.textContent = count ? `Download ${count} (ZIP)` : 'Download Selected (ZIP)';
-    ui.dlSep.textContent = count ? `Download ${count} (Separate)` : 'Download Selected (Separate)';
-    
-    ui.dlZip.disabled = count === 0;
-    ui.dlSep.disabled = count === 0;
-    ui.exJson.disabled = !hasAssets;
-    ui.selAll.disabled = !hasAssets;
-    ui.deSel.disabled = count === 0;
+  function updateSelection() {
+    const n = state.selected.size;
+    ui.dlZip.disabled = n === 0;
+    ui.dlSep.disabled = n === 0;
+    ui.dlZip.textContent = n ? `Download ZIP (${n})` : 'Download ZIP';
+    ui.dlSep.textContent = n ? `Download Separate (${n})` : 'Download Separate';
   }
 
   // --- Details & OCR ---
+
   async function showDetails(asset) {
     ui.details.innerHTML = `
-      <div class="prop-row"><span>ID</span> <span>${asset.id}</span></div>
-      <div class="prop-row"><span>Page</span> <span>${asset.page}</span></div>
-      <div class="prop-row"><span>Dimensions</span> <span>${asset.width} × ${asset.height}</span></div>
-      <div class="prop-row"><span>Size</span> <span>${(asset.blob.size/1024).toFixed(2)} KB</span></div>
-      <div class="prop-row"><span>Type</span> <span>${asset.blob.type}</span></div>
-      <div style="margin-top:20px">
-        <img src="${asset.url}" style="max-width:100%;border:1px solid var(--bd);border-radius:8px;background:#12151c">
+      <img src="${asset.url}" class="preview-lg">
+      <div class="detail-row"><span>ID</span> <span>${asset.id}</span></div>
+      <div class="detail-row"><span>Page</span> <span>${asset.page}</span></div>
+      <div class="detail-row"><span>Dimensions</span> <span>${asset.width} × ${asset.height}</span></div>
+      <div class="detail-row"><span>File Size</span> <span>${(asset.blob.size/1024).toFixed(2)} KB</span></div>
+      <div style="margin-top:15px; display:flex; gap:10px">
+        <button class="primary" onclick="downloadOne('${asset.id}')">Download</button>
+        <button onclick="doOCR('${asset.id}')">OCR Text</button>
       </div>
-      <div style="margin-top:15px;display:flex;gap:10px">
-        <button class="primary" style="flex:1" onclick="downloadSingle('${asset.id}')">Download PNG</button>
-        <button style="flex:1" onclick="runOCR('${asset.id}')">Run OCR</button>
-      </div>
-      <div id="ocrResult-${asset.id}" class="ocr-box hidden"></div>
+      <div id="ocr-${asset.id}" class="ocr-result hidden"></div>
     `;
     
-    // Highlight in preview if active
-    if (ui.tabs[1].classList.contains('active')) {
+    // Highlight in preview if visible
+    if (document.getElementById('preview').style.display === 'block') {
       renderPreview(asset.id);
     }
   }
 
-  window.runOCR = async (id) => {
+  window.doOCR = async (id) => {
     const asset = state.assets.find(a => a.id === id);
-    const box = document.getElementById(`ocrResult-${id}`);
-    if (!asset || !box) return;
+    const box = document.getElementById(`ocr-${id}`);
+    if(!asset || !box) return;
     
     box.classList.remove('hidden');
-    box.textContent = 'Recognizing text...';
-    
+    box.textContent = 'Scanning...';
     try {
       const { data } = await Tesseract.recognize(asset.blob, 'eng');
-      asset.ocr = data.text;
-      box.textContent = data.text.trim() || '(No text detected)';
-    } catch (e) {
-      box.textContent = 'OCR Error: ' + e.message;
+      box.textContent = data.text.trim() || 'No text found.';
+    } catch(e) {
+      box.textContent = 'Error: ' + e.message;
     }
   };
 
   // --- Interactive Preview ---
-  let previewRendered = false;
   
+  let previewBuilt = false;
+
   async function renderPreview(highlightId = null) {
-    // Only render the background canvases once to save performance
-    if (!previewRendered) {
+    // Only build DOM once to save performance
+    if (!previewBuilt) {
       ui.preview.innerHTML = '';
-      const pagesToShow = [...new Set(state.assets.map(a => a.page))].sort((a,b)=>a-b);
+      const pages = [...new Set(state.assets.map(a => a.page))].sort((a,b)=>a-b);
       
-      for (const pNum of pagesToShow) {
+      for (const pNum of pages) {
         const pInfo = state.pages[pNum];
         if (!pInfo) continue;
 
         const wrap = document.createElement('div');
-        wrap.className = 'page-wrap';
-        wrap.dataset.page = pNum;
+        wrap.className = 'page-container';
         
-        // Render PDF Page
+        // Render background canvas
         const canvas = document.createElement('canvas');
+        canvas.className = 'page-canvas';
         canvas.width = pInfo.w;
         canvas.height = pInfo.h;
         wrap.appendChild(canvas);
@@ -543,77 +567,37 @@
         // Async render
         pInfo.pageObj.render({ canvasContext: canvas.getContext('2d'), viewport: pInfo.viewport });
 
-        // Add BBoxes
+        // Overlay Boxes
         const pageAssets = state.assets.filter(a => a.page === pNum);
         pageAssets.forEach(asset => {
           const box = document.createElement('div');
-          box.className = 'bbox';
-          box.id = `bbox-${asset.id}`;
+          box.className = 'highlight-box';
+          box.id = `box-${asset.id}`;
+          
+          // The coords captured in extractPage are already in Viewport pixels
+          // because we passed the viewport to page.render
+          const { x, y, w, h } = asset.coords;
+          
+          box.style.left = `${x}px`;
+          box.style.top = `${y}px`;
+          box.style.width = `${w}px`;
+          box.style.height = `${h}px`;
+          
           box.title = `${asset.width}x${asset.height}`;
-          
-          // Calculate Position
-          // 1. Image is 0,0 -> 1,1 in its own space.
-          // 2. Apply Matrix to get PDF coordinates.
-          // 3. Apply Viewport to get Canvas coordinates.
-          
-          const m = asset.matrix;
-          const vp = pInfo.viewport;
-          
-          // Transform (0,0) [Bottom-Left of image usually] and (1,1) [Top-Right]
-          // Note: PDF Matrix is [sx, ky, kx, sy, tx, ty]
-          // x' = x*sx + y*kx + tx
-          // y' = x*ky + y*sy + ty
-          
-          // Point 0,0
-          const x0 = m[4];
-          const y0 = m[5];
-          
-          // Point 1,0 (Width vector)
-          const x1 = 1*m[0] + m[4];
-          const y1 = 1*m[1] + m[5];
-          
-          // Point 0,1 (Height vector)
-          const x2 = 1*m[2] + m[4];
-          const y2 = 1*m[3] + m[5];
-          
-          // Convert to Viewport (Canvas) pixels
-          // Note: We need to handle rotation/flipping implied by the matrix.
-          // Simplest way: Project 0,0 and 1,1 (assuming no skew) or calculate width/height from vectors.
-          
-          const p0 = vp.convertToViewportPoint(x0, y0);
-          const p1 = vp.convertToViewportPoint(x1, y1);
-          const p2 = vp.convertToViewportPoint(x2, y2);
-          
-          // Calculate bounding box from projected points
-          // Since PDF coords (Y-up) vs Canvas (Y-down) are handled by convertToViewportPoint
-          
-          // Width is distance between p0 and p1 (roughly)
-          // Height is distance between p0 and p2
-          
-          // A more robust way for orthogonal images:
-          const minX = Math.min(p0[0], p1[0], p2[0]);
-          const maxX = Math.max(p0[0], p1[0], p2[0]);
-          const minY = Math.min(p0[1], p1[1], p2[1]);
-          const maxY = Math.max(p0[1], p1[1], p2[1]);
-          
-          box.style.left = minX + 'px';
-          box.style.top = minY + 'px';
-          box.style.width = (maxX - minX) + 'px';
-          box.style.height = (maxY - minY) + 'px';
-          
           box.onclick = (e) => { e.stopPropagation(); showDetails(asset); };
+          
           wrap.appendChild(box);
         });
 
         ui.preview.appendChild(wrap);
       }
-      previewRendered = true;
+      previewBuilt = true;
     }
 
     // Handle Highlighting
-    document.querySelectorAll('.bbox').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.highlight-box').forEach(b => b.classList.remove('active'));
     if (highlightId) {
-      const el = document.getElementById(`bbox-${highlightId}`);
+      const el = document.getElementById(`box-${highlightId}`);
       if (el) {
         el.classList.add('active');
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -621,54 +605,40 @@
     }
   }
 
-  // --- Downloads ---
+  // --- Download Logic ---
 
-  window.downloadSingle = (id) => {
-    const asset = state.assets.find(a => a.id === id);
-    if (asset) saveBlob(asset.blob, `image-${asset.id}.png`);
+  window.downloadOne = (id) => {
+    const a = state.assets.find(x => x.id === id);
+    if(a) save(a.blob, `img-${a.id}.png`);
   };
 
-  async function downloadBatch(asZip) {
-    const targets = state.assets.filter(a => state.selected.has(a.id));
-    if (!targets.length) return;
+  async function downloadBatch(zipMode) {
+    const items = state.assets.filter(a => state.selected.has(a.id));
+    if (!items.length) return;
 
-    if (asZip) {
+    if (zipMode) {
       ui.status.textContent = 'Zipping...';
       const zip = new JSZip();
-      targets.forEach(a => zip.file(`image-${a.id}.png`, a.blob));
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveBlob(content, 'extracted_images.zip');
-      ui.status.textContent = 'Ready';
+      items.forEach(a => zip.file(`img-${a.id}.png`, a.blob));
+      const content = await zip.generateAsync({type:'blob'});
+      save(content, 'images.zip');
+      ui.status.textContent = 'Done';
     } else {
-      // Download separately with delay to prevent browser blocking
-      ui.status.textContent = 'Downloading files...';
-      for (let i = 0; i < targets.length; i++) {
-        saveBlob(targets[i].blob, `image-${targets[i].id}.png`);
-        await new Promise(r => setTimeout(r, 500)); // 500ms delay
+      ui.status.textContent = 'Downloading...';
+      for (const a of items) {
+        save(a.blob, `img-${a.id}.png`);
+        await new Promise(r => setTimeout(r, 300)); // Delay to prevent blocking
       }
       ui.status.textContent = 'Done';
     }
   }
 
-  function exportJSON() {
-    const data = state.assets.map(a => ({
-      id: a.id,
-      page: a.page,
-      width: a.width,
-      height: a.height,
-      ocr: a.ocr || null
-    }));
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    saveBlob(blob, 'manifest.json');
-  }
-
-  function saveBlob(blob, name) {
+  function save(blob, name) {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
 })();
