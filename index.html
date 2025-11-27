@@ -3,448 +3,672 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>PDF Image Extractor • Stable (2.16.105)</title>
+<title>PDF Image Extractor • Pro</title>
 
 <!-- pdf.js (stable 2.16.105) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>
-  // Make sure pdf.js is present before setting workerSrc.
   (function ensurePdfjsReady(){
     const lib = window.pdfjsLib;
     if (!lib) { return setTimeout(ensurePdfjsReady, 30); }
-    lib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-    // Optional stable alias
+    lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
     window.PDFJS = lib;
   })();
 </script>
 
-<!-- Optional OCR & ZIP (you can remove if not needed) -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+<!-- ZIP & OCR -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
 
 <style>
   :root{
-    --bg:#0f1115;--tx:#e7e7ea;--bd:#2a2f3a;--sf:#171a21;--pri:#5aa9ff;--ok:#24d8a7;--err:#ff6161;
-    --r:12px;--mono:ui-monospace,Menlo,Consolas,monospace;--sans:ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;
+    --bg:#0f1115; --tx:#e7e7ea; --bd:#2a2f3a; --sf:#171a21;
+    --pri:#5aa9ff; --pri-hov:#4a90e2; --ok:#24d8a7; --err:#ff6161;
+    --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
   }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--sans);display:grid;grid-template-columns:300px 1fr 340px;grid-template-rows:56px 1fr;grid-template-areas:"top top top" "left main right";height:100vh}
-  header{grid-area:top;display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--bd);padding:0 16px;background:var(--sf)}
-  header h1{font-size:16px;margin:0}
-  #left{grid-area:left;border-right:1px solid var(--bd);padding:14px;overflow:auto;background:var(--sf)}
-  #right{grid-area:right;border-left:1px solid var(--bd);padding:14px;overflow:auto;background:var(--sf)}
-  #main{grid-area:main;display:flex;flex-direction:column;min-width:0}
-  .drop{border:1px dashed var(--bd);border-radius:12px;padding:18px;text-align:center;cursor:pointer}
-  .drop.drag{border-color:var(--pri);background:rgba(90,169,255,.08)}
-  .muted{opacity:.7}
-  .barwrap{height:8px;background:#1d2230;border-radius:999px;overflow:hidden;margin-top:8px}
-  .bar{height:8px;width:0;background:linear-gradient(90deg,var(--pri),var(--ok));transition:width .2s}
-  .err{border:1px solid var(--err);color:#fff;background:rgba(255,97,97,.1);padding:10px;border-radius:10px;margin-top:10px;white-space:pre-wrap}
-  .tabs{display:flex;border-bottom:1px solid var(--bd)}
-  .tabs button{background:transparent;border:none;color:#bfc3cf;padding:10px 14px;border-bottom:2px solid transparent;cursor:pointer}
-  .tabs button.active{color:#fff;border-bottom-color:var(--pri)}
-  #gallery{padding:14px;overflow:auto}
-  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
-  .card{border:1px solid var(--bd);border-radius:10px;overflow:hidden}
-  .thumb{height:140px;display:flex;align-items:center;justify-content:center;background:#12151c}
-  .thumb img{max-width:100%;max-height:100%}
-  .meta{padding:8px 10px;font-size:12px;display:grid;gap:4px}
-  .row{display:flex;justify-content:space-between;gap:10px}
-  .sel{display:flex;gap:8px;border-top:1px solid var(--bd);padding:8px}
-  .sel button{flex:1;border:1px solid var(--bd);background:transparent;color:#fff;border-radius:8px;padding:6px;cursor:pointer}
-  .sel button.active{background:var(--pri);border-color:var(--pri)}
-  #preview{flex:1;overflow:auto;padding:12px}
-  .pageWrap{position:relative;margin:0 auto 16px;width:max-content}
-  canvas.pdf{box-shadow:0 10px 30px rgba(0,0,0,.35);border-radius:12px}
-  .bbox{position:absolute;border:2px solid var(--pri);background:rgba(90,169,255,.22);cursor:pointer}
-  .controls{display:grid;gap:10px;margin-top:12px}
-  select,button{border:1px solid var(--bd);background:transparent;color:#fff;border-radius:8px;padding:8px;cursor:pointer}
+  *{box-sizing:border-box; outline:none;}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:var(--sans);display:grid;grid-template-columns:320px 1fr 350px;grid-template-rows:60px 1fr;grid-template-areas:"top top top" "left main right";height:100vh;overflow:hidden;}
+  
+  /* Header */
+  header{grid-area:top;display:flex;gap:16px;align-items:center;border-bottom:1px solid var(--bd);padding:0 20px;background:var(--sf);}
+  header h1{font-size:18px;font-weight:600;margin:0;color:#fff;letter-spacing:-0.5px;}
+  .badge{background:var(--bd);padding:4px 8px;border-radius:6px;font-size:12px;color:#999;}
+  
+  /* Layout Columns */
+  #left{grid-area:left;border-right:1px solid var(--bd);padding:16px;overflow-y:auto;background:var(--sf);display:flex;flex-direction:column;gap:20px;}
+  #right{grid-area:right;border-left:1px solid var(--bd);padding:0;overflow-y:auto;background:var(--sf);display:flex;flex-direction:column;}
+  #main{grid-area:main;display:flex;flex-direction:column;min-width:0;background:var(--bg);position:relative;}
+
+  /* Drop Zone */
+  .drop{border:2px dashed var(--bd);border-radius:12px;padding:30px 20px;text-align:center;cursor:pointer;transition:all .2s;}
+  .drop:hover{border-color:var(--pri);background:rgba(90,169,255,.05);}
+  .drop.drag{border-color:var(--ok);background:rgba(36,216,167,.1);}
+  .drop strong{display:block;font-size:16px;margin-bottom:4px;color:#fff;}
+  .muted{color:#8b949e;font-size:13px;}
+
+  /* Progress */
+  .progress-wrap{background:#1d2230;height:6px;border-radius:99px;overflow:hidden;margin-top:10px;}
+  .bar{height:100%;width:0;background:var(--pri);transition:width .2s ease-out;}
+  
+  /* Controls */
+  .control-group{display:grid;gap:8px;}
+  .control-group label{font-size:12px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px;}
+  select, button{background:var(--bd);border:1px solid transparent;color:var(--tx);padding:10px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;transition:all .2s;}
+  select:hover, button:hover{border-color:var(--pri);}
+  button.primary{background:var(--pri);color:#000;font-weight:600;}
+  button.primary:hover{background:var(--pri-hov);}
+  button:disabled{opacity:0.5;cursor:not-allowed;filter:grayscale(1);}
+  
+  /* Tabs */
+  .tabs{display:flex;border-bottom:1px solid var(--bd);background:var(--sf);}
+  .tabs button{background:transparent;border:none;border-bottom:2px solid transparent;border-radius:0;flex:1;padding:14px;color:#8b949e;font-weight:500;}
+  .tabs button:hover{color:#fff;}
+  .tabs button.active{color:var(--pri);border-bottom-color:var(--pri);}
+
+  /* Gallery */
+  #gallery{padding:20px;overflow-y:auto;height:100%;}
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px;}
+  
+  .card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;overflow:hidden;transition:transform .1s, border-color .1s;position:relative;}
+  .card:hover{transform:translateY(-2px);border-color:var(--pri);}
+  .card.selected{border-color:var(--pri);box-shadow:0 0 0 1px var(--pri);}
+  
+  .thumb{height:120px;background:#12151c url('data:image/svg+xml,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0zm10 10h10v10H10z" fill="%231a1d26" fill-rule="evenodd"/></svg>');display:flex;align-items:center;justify-content:center;position:relative;}
+  .thumb img{max-width:100%;max-height:100%;object-fit:contain;}
+  
+  .card-actions{position:absolute;top:6px;right:6px;display:flex;gap:4px;}
+  .icon-btn{width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(0,0,0,0.6);color:#fff;border:none;backdrop-filter:blur(4px);}
+  .icon-btn:hover{background:var(--pri);color:#000;}
+
+  .meta{padding:10px;font-size:11px;color:#8b949e;}
+  .meta div{display:flex;justify-content:space-between;margin-bottom:2px;}
+  .meta strong{color:#fff;}
+
+  .select-check{padding:10px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+  .select-check:hover{background:#1d2230;}
+  .chk{width:16px;height:16px;border:2px solid var(--bd);border-radius:4px;display:flex;align-items:center;justify-content:center;}
+  .card.selected .chk{background:var(--pri);border-color:var(--pri);}
+  .card.selected .chk::after{content:'✓';color:#000;font-size:12px;font-weight:bold;}
+
+  /* Preview */
+  #preview{padding:20px;overflow:auto;height:100%;display:none;text-align:center;}
+  .page-wrap{position:relative;display:inline-block;margin-bottom:20px;box-shadow:0 10px 40px rgba(0,0,0,0.5);}
+  .page-wrap canvas{display:block;border-radius:4px;}
+  .bbox{position:absolute;border:2px solid var(--pri);background:rgba(90,169,255,0.2);cursor:pointer;transition:background .2s;}
+  .bbox:hover{background:rgba(90,169,255,0.4);z-index:10;}
+  .bbox.active{border-color:var(--ok);background:rgba(36,216,167,0.3);box-shadow:0 0 0 2px rgba(0,0,0,0.5);}
+
+  /* Details Pane */
+  .details-head{padding:16px;border-bottom:1px solid var(--bd);}
+  .details-body{padding:16px;flex:1;overflow-y:auto;}
+  .prop-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd);font-size:13px;}
+  .prop-row span:first-child{color:#8b949e;}
+  .ocr-box{background:#12151c;padding:10px;border-radius:8px;font-family:var(--mono);font-size:12px;margin-top:10px;white-space:pre-wrap;border:1px solid var(--bd);min-height:60px;}
+
+  /* Utility */
+  .hidden{display:none!important;}
+  .err-msg{background:rgba(255,97,97,0.1);border:1px solid var(--err);color:var(--err);padding:12px;border-radius:8px;font-size:13px;margin-top:10px;}
 </style>
 </head>
 <body>
+
 <header>
   <h1>PDF Image Extractor</h1>
-  <div class="muted" id="status">Idle</div>
+  <span class="badge">v3.0 Pro</span>
+  <div style="flex:1"></div>
+  <div class="muted" id="status">Ready</div>
 </header>
 
 <aside id="left">
-  <label class="drop" id="drop"><strong>Drag & drop PDF</strong><br><span class="muted">or click to select</span></label>
-  <input id="file" type="file" accept="application/pdf" hidden>
-  <div style="margin-top:10px">
-    <div class="barwrap"><div class="bar" id="bar"></div></div>
-    <div id="ptext" class="muted">Waiting…</div>
-    <div id="err" class="err" style="display:none"></div>
+  <!-- Upload -->
+  <div>
+    <label class="drop" id="dropZone">
+      <strong>Click or Drop PDF</strong>
+      <span class="muted">Analyze & Extract</span>
+    </label>
+    <input id="fileInput" type="file" accept="application/pdf" hidden>
+    <div class="progress-wrap"><div class="bar" id="progressBar"></div></div>
+    <div id="errorBox" class="err-msg hidden"></div>
   </div>
 
-  <div class="controls">
-    <div>
-      <label class="muted">Filter</label>
-      <select id="filter">
-        <option value="all">All</option>
-        <option value="image">Image</option>
-        <option value="canvas">Canvas</option>
+  <!-- Filters -->
+  <div class="control-group">
+    <label>Filter & Sort</label>
+    <div style="display:flex;gap:8px">
+      <select id="filterType" style="flex:1">
+        <option value="all">All Types</option>
+        <option value="image">Images</option>
+        <option value="mask">Masks/Stencil</option>
+      </select>
+      <select id="sortType" style="flex:1">
+        <option value="page">Page Order</option>
+        <option value="size">Largest Size</option>
       </select>
     </div>
-    <div>
-      <label class="muted">Sort</label>
-      <select id="sort">
-        <option value="page">Page</option>
-        <option value="size">Pixel Area</option>
-        <option value="aspect">Aspect</option>
-      </select>
+  </div>
+
+  <!-- Actions -->
+  <div class="control-group">
+    <label>Selection Actions</label>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button id="btnSelectAll" style="flex:1">Select All</button>
+      <button id="btnDeselectAll" style="flex:1">None</button>
     </div>
-    <button id="exportJson" disabled>Export JSON</button>
-    <button id="downloadZip" disabled>Download ZIP (selected/all)</button>
+    <button id="btnDownloadZip" class="primary" disabled>Download Selected (ZIP)</button>
+    <button id="btnDownloadSeparate" disabled>Download Selected (Separate)</button>
+    <button id="btnExportJson" disabled>Export JSON Manifest</button>
   </div>
 </aside>
 
 <main id="main">
   <div class="tabs">
-    <button class="active" data-tab="gallery">Asset Gallery</button>
+    <button class="active" data-tab="gallery">Asset Gallery (<span id="countGallery">0</span>)</button>
     <button data-tab="preview">Interactive Preview</button>
   </div>
-  <section id="gallery">
-    <div id="welcome">
-      <h3>Welcome</h3>
-      <p class="muted">Open a PDF to extract images. This version pins pdf.js 2.16.105 and handles Safari/Chromium quirks.</p>
+  
+  <div id="gallery">
+    <div id="welcome" style="text-align:center;margin-top:60px;color:#8b949e">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+      <p>Load a PDF to view and extract images.</p>
     </div>
     <div id="grid"></div>
-  </section>
-  <section id="preview" style="display:none">
-    <div id="pages"></div>
-  </section>
+  </div>
+
+  <div id="preview"></div>
 </main>
 
 <aside id="right">
-  <h3>Details</h3>
-  <div id="details" class="muted">Select an asset…</div>
+  <div class="details-head">
+    <h3>Asset Details</h3>
+  </div>
+  <div class="details-body" id="detailsPane">
+    <div class="muted" style="text-align:center;margin-top:40px">Select an image to view details.</div>
+  </div>
 </aside>
 
 <script>
 (() => {
-  // ----------- Helpers for pdf.js availability -----------
-  function getPDF() {
-    const PDF = window.PDFJS || window.pdfjsLib;
-    if (!PDF) throw new Error("pdf.js failed to load. Check network and script tag.");
-    return PDF;
-  }
-
-  // ----------- Polyfills & feature detection -----------
-  const hasOffscreen = typeof OffscreenCanvas !== 'undefined';
-  function canvasToBlob(canvas, type='image/png', quality=0.92){
-    if (hasOffscreen && canvas instanceof OffscreenCanvas){
-      return canvas.convertToBlob({type, quality});
-    }
-    return new Promise(res => canvas.toBlob(res, type, quality));
-  }
-  async function bitmapFromBlob(blob){
-    if ('createImageBitmap' in window) return await createImageBitmap(blob);
-    // Safari fallback
-    return await new Promise((resolve, reject)=>{
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = img.naturalWidth; c.height = img.naturalHeight;
-        c.getContext('2d').drawImage(img,0,0);
-        resolve(c);
-      };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(blob);
-    });
-  }
-  function showErr(e){
-    const el = document.getElementById('err');
-    el.style.display='block';
-    el.textContent = (e && e.message) ? e.message : String(e);
-    console.error(e);
-  }
-  function clearErr(){ const el = document.getElementById('err'); el.style.display='none'; el.textContent=''; }
-
-  // ----------- UI refs -----------
-  const ui = {
-    drop: document.getElementById('drop'),
-    file: document.getElementById('file'),
-    bar: document.getElementById('bar'),
-    ptext: document.getElementById('ptext'),
-    status: document.getElementById('status'),
-    tabs: document.querySelectorAll('.tabs button'),
-    gallery: document.getElementById('gallery'),
-    preview: document.getElementById('preview'),
-    grid: document.getElementById('grid'),
-    pages: document.getElementById('pages'),
-    exportJson: document.getElementById('exportJson'),
-    downloadZip: document.getElementById('downloadZip'),
-    filter: document.getElementById('filter'),
-    sort: document.getElementById('sort'),
-    details: document.getElementById('details'),
-    welcome: document.getElementById('welcome'),
-  };
-
-  // ----------- State -----------
-  let abortLoad = null;
+  // --- State & Config ---
   const state = {
-    pdf:null, numPages:0, assets:[], selected:new Set(), pages:new Map()
+    pdf: null,
+    assets: [], // { id, page, width, height, blob, url, transform, type }
+    pages: [],  // { w, h, viewport }
+    selected: new Set(),
+    abortCtrl: null
   };
 
-  // ----------- Misc helpers -----------
-  function progress(p, t){ ui.bar.style.width=p+'%'; ui.ptext.textContent=t||''; }
-  function setStatus(t){ ui.status.textContent = t; }
+  const ui = {
+    drop: document.getElementById('dropZone'),
+    file: document.getElementById('fileInput'),
+    bar: document.getElementById('progressBar'),
+    status: document.getElementById('status'),
+    err: document.getElementById('errorBox'),
+    grid: document.getElementById('grid'),
+    preview: document.getElementById('preview'),
+    details: document.getElementById('detailsPane'),
+    tabs: document.querySelectorAll('.tabs button'),
+    welcome: document.getElementById('welcome'),
+    count: document.getElementById('countGallery'),
+    // Buttons
+    dlZip: document.getElementById('btnDownloadZip'),
+    dlSep: document.getElementById('btnDownloadSeparate'),
+    exJson: document.getElementById('btnExportJson'),
+    selAll: document.getElementById('btnSelectAll'),
+    deSel: document.getElementById('btnDeselectAll'),
+    filter: document.getElementById('filterType'),
+    sort: document.getElementById('sortType'),
+  };
 
-  // DnD
-  ['dragenter','dragover'].forEach(evt => ui.drop.addEventListener(evt, e=>{e.preventDefault(); ui.drop.classList.add('drag');}));
-  ['dragleave','drop'].forEach(evt => ui.drop.addEventListener(evt, e=>{e.preventDefault(); ui.drop.classList.remove('drag');}));
-  ui.drop.addEventListener('click',()=>ui.file.click());
-  ui.drop.addEventListener('drop',e=> { const f=e.dataTransfer.files?.[0]; if(f) openPDF(f); });
-  ui.file.addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) openPDF(f); });
+  // --- Initialization ---
+  ui.drop.addEventListener('click', () => ui.file.click());
+  ui.drop.addEventListener('dragover', e => { e.preventDefault(); ui.drop.classList.add('drag'); });
+  ui.drop.addEventListener('dragleave', () => ui.drop.classList.remove('drag'));
+  ui.drop.addEventListener('drop', e => { e.preventDefault(); ui.drop.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+  ui.file.addEventListener('change', e => handleFile(e.target.files[0]));
 
-  // Tabs
-  ui.tabs.forEach(b => b.addEventListener('click',()=>switchTab(b.dataset.tab)));
-  function switchTab(name){
-    ui.tabs.forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
-    ui.gallery.style.display = name==='gallery'? '' : 'none';
-    ui.preview.style.display = name==='preview'? '' : 'none';
-    if (name==='preview' && state.pdf) renderPreview();
-  }
+  ui.tabs.forEach(b => b.addEventListener('click', () => {
+    ui.tabs.forEach(t => t.classList.remove('active'));
+    b.classList.add('active');
+    const tab = b.dataset.tab;
+    ui.gallery.style.display = tab === 'gallery' ? 'block' : 'none';
+    ui.preview.style.display = tab === 'preview' ? 'block' : 'none';
+    if (tab === 'preview') renderPreview();
+  }));
 
-  // Controls
   ui.filter.addEventListener('change', renderGrid);
   ui.sort.addEventListener('change', renderGrid);
-  ui.exportJson.addEventListener('click', exportJSON);
-  ui.downloadZip.addEventListener('click', downloadZIP);
+  ui.selAll.addEventListener('click', () => { state.assets.forEach(a => state.selected.add(a.id)); updateSelectionUI(); });
+  ui.deSel.addEventListener('click', () => { state.selected.clear(); updateSelectionUI(); });
+  
+  ui.dlZip.addEventListener('click', () => downloadBatch(true));
+  ui.dlSep.addEventListener('click', () => downloadBatch(false));
+  ui.exJson.addEventListener('click', exportJSON);
 
-  function reset(){
-    if (abortLoad){ abortLoad.abort(); abortLoad = null; }
-    clearErr();
-    state.pdf=null; state.numPages=0; state.assets=[]; state.selected.clear(); state.pages.clear();
-    ui.grid.innerHTML=''; ui.pages.innerHTML=''; ui.details.textContent='Select an asset…';
-    ui.exportJson.disabled = true; ui.downloadZip.disabled = true;
-    ui.welcome.style.display=''; progress(0,'Waiting…'); setStatus('Idle');
-  }
+  // --- Core Logic ---
 
-  async function openPDF(file){
-    try{
-      reset();
-      abortLoad = new AbortController();
-      const { signal } = abortLoad;
+  async function handleFile(file) {
+    if (!file || file.type !== 'application/pdf') return alert('Please select a PDF file.');
+    
+    // Reset
+    if (state.abortCtrl) state.abortCtrl.abort();
+    state.abortCtrl = new AbortController();
+    state.assets.forEach(a => URL.revokeObjectURL(a.url));
+    state.assets = [];
+    state.pages = [];
+    state.selected.clear();
+    state.pdf = null;
+    
+    ui.grid.innerHTML = '';
+    ui.preview.innerHTML = '';
+    ui.details.innerHTML = '<div class="muted" style="text-align:center;margin-top:40px">Select an image...</div>';
+    ui.welcome.style.display = 'none';
+    ui.err.classList.add('hidden');
+    updateSelectionUI();
 
-      setStatus('Reading file…'); progress(5,'Reading file…');
-      const buf = await file.arrayBuffer();
-      if (signal.aborted) return;
-
-      progress(10,'Loading pdf.js document…');
-      const PDF = getPDF();
-      const task = PDF.getDocument({data:new Uint8Array(buf)});
-      state.pdf = await task.promise;
-      state.numPages = state.pdf.numPages;
-      setStatus(`Loaded (${state.numPages} pages)`); progress(15,'Starting extraction…');
-      ui.welcome.style.display='none';
-
-      for (let i=1;i<=state.numPages;i++){
-        if (signal.aborted) return;
-        progress(15 + Math.round((i-1)/state.numPages*70), `Page ${i}/${state.numPages}`);
-        await extractPage(i);
+    try {
+      ui.status.textContent = 'Loading PDF...';
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      state.pdf = await loadingTask.promise;
+      
+      ui.status.textContent = `Scanning ${state.pdf.numPages} pages...`;
+      
+      for (let i = 1; i <= state.pdf.numPages; i++) {
+        if (state.abortCtrl.signal.aborted) return;
+        ui.bar.style.width = `${(i / state.pdf.numPages) * 100}%`;
+        await extractFromPage(i);
       }
-
-      progress(95,'Finalizing…'); renderGrid(); setStatus(`Done: ${state.assets.length} images`);
-      ui.exportJson.disabled = state.assets.length===0;
-      ui.downloadZip.disabled = state.assets.length===0;
-      progress(100,'Complete');
-    } catch(e){
-      showErr(e);
-      setStatus('Error');
+      
+      ui.status.textContent = `Done. Found ${state.assets.length} images.`;
+      renderGrid();
+    } catch (e) {
+      console.error(e);
+      ui.err.textContent = e.message;
+      ui.err.classList.remove('hidden');
+      ui.status.textContent = 'Error';
     }
   }
 
-  // Safe drawImage interception (2.16 works with CanvasRenderingContext2D)
-  async function extractPage(pageNum){
-    const PDF = getPDF();
+  // --- The Heavy Lifter: Operator List Parsing ---
+  async function extractFromPage(pageNum) {
     const page = await state.pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 2.0 });
+    const ops = await page.getOperatorList();
+    const commonObjs = page.commonObjs;
+    const objs = page.objs;
+    
+    // Store page info for preview
+    const viewport = page.getViewport({ scale: 1.5 }); // Preview scale
+    state.pages[pageNum] = { w: viewport.width, h: viewport.height, viewport, pageObj: page };
+
+    // Matrix State Machine
+    let transformStack = [];
+    let currentMatrix = [1, 0, 0, 1, 0, 0]; // Identity
+
+    // Helper to multiply matrices
+    const multiply = (m1, m2) => [
+      m1[0]*m2[0] + m1[2]*m2[1],
+      m1[1]*m2[0] + m1[3]*m2[1],
+      m1[0]*m2[2] + m1[2]*m2[3],
+      m1[1]*m2[2] + m1[3]*m2[3],
+      m1[0]*m2[4] + m1[2]*m2[5] + m1[4],
+      m1[1]*m2[4] + m1[3]*m2[5] + m1[5]
+    ];
+
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      const fn = ops.fnArray[i];
+      const args = ops.argsArray[i];
+
+      // Track Transforms
+      if (fn === pdfjsLib.OPS.save) {
+        transformStack.push([...currentMatrix]);
+      } else if (fn === pdfjsLib.OPS.restore) {
+        if (transformStack.length) currentMatrix = transformStack.pop();
+      } else if (fn === pdfjsLib.OPS.transform) {
+        currentMatrix = multiply(currentMatrix, args);
+      }
+      
+      // Detect Images
+      else if (fn === pdfjsLib.OPS.paintImageXObject || fn === pdfjsLib.OPS.paintInlineImageXObject) {
+        const imgName = args[0];
+        
+        // Retrieve Image Data
+        let imgObj;
+        try {
+          imgObj = await objs.get(imgName);
+        } catch(e) { continue; } // Skip if missing
+
+        if (imgObj) {
+          await processImage(imgObj, pageNum, currentMatrix, imgName);
+        }
+      }
+    }
+  }
+
+  async function processImage(imgObj, pageNum, matrix, name) {
+    // Convert raw PDF image data to a Blob/URL
+    const width = imgObj.width;
+    const height = imgObj.height;
+    
+    if (!width || !height) return;
+
+    // Create an offscreen canvas to convert data to PNG
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, viewport.width|0);
-    canvas.height = Math.max(1, viewport.height|0);
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
 
-    state.pages.set(pageNum, { w: canvas.width, h: canvas.height });
-
-    const orig = CanvasRenderingContext2D.prototype.drawImage;
-    let seq = 0;
-    CanvasRenderingContext2D.prototype.drawImage = function(...args){
-      try{
-        const img = args[0];
-        if (!img) return orig.apply(this,args);
-        let sx=0,sy=0,sW=img.width,sH=img.height,dx=0,dy=0,dW=sW,dH=sH;
-        if (args.length===3){ dx=args[1]; dy=args[2]; }
-        else if (args.length===5){ dx=args[1]; dy=args[2]; dW=args[3]; dH=args[4]; }
-        else if (args.length===9){ sx=args[1]; sy=args[2]; sW=args[3]; sH=args[4]; dx=args[5]; dy=args[6]; dW=args[7]; dH=args[8]; }
-
-        let off;
-        if (hasOffscreen) off = new OffscreenCanvas(Math.max(1,sW), Math.max(1,sH));
-        else { off = document.createElement('canvas'); off.width=Math.max(1,sW); off.height=Math.max(1,sH); }
-        const octx = off.getContext('2d');
-
-        try{
-          if (args.length===9) octx.drawImage(img, sx, sy, sW, sH, 0, 0, sW, sH);
-          else octx.drawImage(img, 0, 0);
-          postAsset(off, pageNum, guessType(img), {x:dx, y:dy, w:dW, h:dH}, seq++);
-        }catch(_){}
-      }catch(_){}
-      return orig.apply(this,args);
-    };
-
-    try{
-      await page.render({ canvasContext: ctx, viewport }).promise;
-    } finally {
-      CanvasRenderingContext2D.prototype.drawImage = orig;
-    }
-
-    // Keep preview image for overlay
-    const url = canvas.toDataURL('image/webp', 0.85);
-    state.pages.get(pageNum).preview = url;
-    page.cleanup?.();
-  }
-
-  function guessType(img){
-    const t = Object.prototype.toString.call(img);
-    if (t.includes('ImageBitmap')) return 'image';
-    if (t.includes('HTMLCanvas')) return 'canvas';
-    return 'image';
-  }
-
-  async function postAsset(off, page, type, bbox, seq){
-    try{
-      const blob = await canvasToBlob(off, 'image/png', 0.92);
-      const url = URL.createObjectURL(blob);
-      const w = off.width, h = off.height;
-      const id = `p${page}-${String(seq).padStart(3,'0')}`;
-      state.assets.push({ id, page, type, width:w, height:h, area:w*h, aspect:+(w/h).toFixed(3), bbox, url, blob, ocr:null });
-    } catch(e){
-      console.warn('postAsset failed', e);
-    }
-  }
-
-  // ----------- Rendering -----------
-  function renderGrid(){
-    const f = ui.filter.value, s = ui.sort.value;
-    let items = [...state.assets];
-    if (f!=='all') items = items.filter(a=>a.type===f);
-    if (s==='page') items.sort((a,b)=>a.page-b.page || a.id.localeCompare(b.id));
-    if (s==='size') items.sort((a,b)=>b.area-a.area);
-    if (s==='aspect') items.sort((a,b)=>b.aspect-a.aspect);
-
-    ui.grid.innerHTML='';
-    items.forEach(a=>{
-      const card = document.createElement('div'); card.className='card'; card.dataset.id=a.id;
-      const th = document.createElement('div'); th.className='thumb';
-      const img = document.createElement('img'); img.src=a.url; img.loading='lazy'; th.appendChild(img);
-      const meta = document.createElement('div'); meta.className='meta';
-      meta.innerHTML = `
-        <div class="row"><strong>${a.id}</strong><span class="muted">p.${a.page}</span></div>
-        <div class="row"><span>${a.width}×${a.height}</span><span>${(a.area/1e6).toFixed(2)} MP</span></div>
-        <div class="row"><span>Aspect</span><span>${a.aspect}</span></div>
-        <div class="row"><span>Type</span><span>${a.type}</span></div>`;
-      const sel = document.createElement('div'); sel.className='sel';
-      const bSel = document.createElement('button'); bSel.textContent='Select'; bSel.classList.toggle('active', state.selected.has(a.id));
-      bSel.onclick = e => { e.stopPropagation(); toggleSelect(a.id); bSel.classList.toggle('active', state.selected.has(a.id)); };
-      const bOcr = document.createElement('button'); bOcr.textContent='OCR'; bOcr.onclick = async (e)=>{ e.stopPropagation(); await runOCR(a); };
-      sel.append(bSel,bOcr);
-
-      card.append(th,meta,sel);
-      card.onclick = () => { showDetails(a); switchTab('preview'); renderPreview(a.page, a.id); };
-      ui.grid.appendChild(card);
-    });
-    ui.exportJson.disabled = state.assets.length===0;
-    ui.downloadZip.disabled = (state.assets.length===0);
-  }
-
-  async function runOCR(a){
-    try{
-      setStatus('OCR…');
-      const { data } = await Tesseract.recognize(a.blob,'eng');
-      a.ocr = (data.text||'').trim();
-      showDetails(a);
-      setStatus('Done');
-    } catch(e){
-      showErr(e);
-    }
-  }
-
-  function showDetails(a){
-    const bb = a.bbox;
-    ui.details.innerHTML = `
-      <div><strong>ID:</strong> ${a.id}</div>
-      <div><strong>Page:</strong> ${a.page}</div>
-      <div><strong>Size:</strong> ${a.width}×${a.height} (${(a.area/1e6).toFixed(2)} MP)</div>
-      <div><strong>Aspect:</strong> ${a.aspect}</div>
-      <div><strong>Type:</strong> ${a.type}</div>
-      <div><strong>BBox:</strong> x=${bb.x.toFixed(1)}, y=${bb.y.toFixed(1)}, w=${bb.w.toFixed(1)}, h=${bb.h.toFixed(1)}</div>
-      <div style="margin-top:8px"><a href="${a.url}" download="${a.id}.png">Download PNG</a></div>
-      <div style="margin-top:8px"><strong>OCR</strong><pre style="white-space:pre-wrap;font-family:var(--mono);border:1px solid var(--bd);padding:8px;border-radius:8px;max-height:180px;overflow:auto">${a.ocr ?? '—'}</pre></div>
-    `;
-  }
-
-  async function renderPreview(highlightPage=null, highlightId=null){
-    ui.pages.innerHTML='';
-    const toShow = highlightPage ? [highlightPage] : [...state.pages.keys()];
-    for (const p of toShow){
-      const info = state.pages.get(p);
-      if (!info?.preview){
-        const PDF = getPDF();
-        const page = await state.pdf.getPage(p);
-        const vp = page.getViewport({scale:1.2});
-        const c = document.createElement('canvas'); c.width=vp.width|0; c.height=vp.height|0; await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
-        info.preview = c.toDataURL('image/webp',0.85);
+    // Handle different data types from PDF.js
+    if (imgObj.bitmap) {
+      ctx.drawImage(imgObj.bitmap, 0, 0);
+    } else if (imgObj.data) {
+      // Raw RGBA or RGB
+      const kind = imgObj.kind || (imgObj.data.length === width * height * 4 ? 'RGBA' : 'RGB');
+      let imageData = ctx.createImageData(width, height);
+      
+      if (kind === 'RGB' || imgObj.data.length === width * height * 3) {
+        let j = 0;
+        for (let i = 0; i < imgObj.data.length; i += 3) {
+          imageData.data[j++] = imgObj.data[i];
+          imageData.data[j++] = imgObj.data[i+1];
+          imageData.data[j++] = imgObj.data[i+2];
+          imageData.data[j++] = 255;
+        }
+      } else {
+        // Assume RGBA
+        for (let i = 0; i < imgObj.data.length; i++) {
+          imageData.data[i] = imgObj.data[i];
+        }
       }
-      const wrap = document.createElement('div'); wrap.className='pageWrap';
-      const cv = document.createElement('canvas'); cv.className='pdf'; cv.width=info.w; cv.height=info.h; wrap.appendChild(cv);
-      const ctx = cv.getContext('2d');
-      const img = new Image(); img.src = info.preview; await img.decode(); ctx.drawImage(img,0,0);
-
-      state.assets.filter(a=>a.page===p).forEach(a=>{
-        const bb = a.bbox;
-        const box = document.createElement('div'); box.className='bbox';
-        box.style.left = bb.x+'px'; box.style.top = bb.y+'px';
-        box.style.width = bb.w+'px'; box.style.height = bb.h+'px';
-        if (a.id===highlightId) box.style.boxShadow='0 0 0 3px rgba(36,216,167,.9) inset';
-        box.title = `${a.id}`;
-        box.onclick = ()=>{ showDetails(a); };
-        wrap.appendChild(box);
-      });
-      ui.pages.appendChild(wrap);
+      ctx.putImageData(imageData, 0, 0);
+    } else {
+      return; // Unknown format
     }
+
+    // Create Blob
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const url = URL.createObjectURL(blob);
+    
+    // Calculate BBox in PDF Page Space (0,0 to 1,1 transformed)
+    // We only need the matrix to calculate where it lands on the page later
+    
+    const id = `p${pageNum}_${state.assets.length + 1}`;
+    
+    state.assets.push({
+      id,
+      page: pageNum,
+      width,
+      height,
+      area: width * height,
+      blob,
+      url,
+      matrix: [...matrix], // Store matrix for preview positioning
+      type: (width < 50 || height < 50) ? 'mask' : 'image', // Simple heuristic
+      ocr: null
+    });
   }
 
-  function toggleSelect(id){
+  // --- Rendering UI ---
+
+  function renderGrid() {
+    const filter = ui.filter.value;
+    const sort = ui.sort.value;
+    
+    let list = state.assets.filter(a => filter === 'all' || a.type === filter);
+    
+    if (sort === 'size') list.sort((a,b) => b.area - a.area);
+    else list.sort((a,b) => a.page - b.page || a.id.localeCompare(b.id));
+
+    ui.grid.innerHTML = '';
+    ui.count.textContent = list.length;
+
+    list.forEach(asset => {
+      const el = document.createElement('div');
+      el.className = `card ${state.selected.has(asset.id) ? 'selected' : ''}`;
+      el.onclick = (e) => {
+        if(!e.target.closest('button') && !e.target.closest('.select-check')) {
+          showDetails(asset);
+        }
+      };
+
+      el.innerHTML = `
+        <div class="card-actions">
+          <button class="icon-btn" title="Download" onclick="downloadSingle('${asset.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          </button>
+        </div>
+        <div class="thumb"><img src="${asset.url}" loading="lazy"></div>
+        <div class="meta">
+          <div><strong>${asset.width} × ${asset.height}</strong> <span>P.${asset.page}</span></div>
+          <div class="muted">${(asset.blob.size/1024).toFixed(1)} KB</div>
+        </div>
+        <div class="select-check" onclick="toggleSelect('${asset.id}', this)">
+          <div class="chk"></div>
+          <span>Select</span>
+        </div>
+      `;
+      ui.grid.appendChild(el);
+    });
+    updateSelectionUI();
+  }
+
+  window.toggleSelect = (id, el) => {
     if (state.selected.has(id)) state.selected.delete(id);
     else state.selected.add(id);
+    
+    // Update visual state immediately
+    const card = el.closest('.card');
+    card.classList.toggle('selected', state.selected.has(id));
+    updateSelectionUI();
+  };
+
+  function updateSelectionUI() {
+    const count = state.selected.size;
+    const hasAssets = state.assets.length > 0;
+    
+    ui.dlZip.textContent = count ? `Download ${count} (ZIP)` : 'Download Selected (ZIP)';
+    ui.dlSep.textContent = count ? `Download ${count} (Separate)` : 'Download Selected (Separate)';
+    
+    ui.dlZip.disabled = count === 0;
+    ui.dlSep.disabled = count === 0;
+    ui.exJson.disabled = !hasAssets;
+    ui.selAll.disabled = !hasAssets;
+    ui.deSel.disabled = count === 0;
   }
 
-  function exportJSON(){
-    const manifest = state.assets.map(a=>({
-      id:a.id,page:a.page,type:a.type,width:a.width,height:a.height,aspect:a.aspect,bbox:a.bbox,ocr:a.ocr??null,filename:`${a.id}.png`
-    }));
-    const blob = new Blob([JSON.stringify({pages:state.numPages, assets:manifest}, null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    download(url, 'pdf-image-manifest.json');
-  }
-
-  async function downloadZIP(){
-    const zip = new JSZip();
-    const chosen = state.selected.size ? state.assets.filter(a=>state.selected.has(a.id)) : state.assets;
-    const manifest = [];
-    for (const a of chosen){
-      zip.file(`${a.id}.png`, await a.blob.arrayBuffer());
-      manifest.push({id:a.id,page:a.page,type:a.type,width:a.width,height:a.height,aspect:a.aspect,bbox:a.bbox,ocr:a.ocr??null,filename:`${a.id}.png`});
+  // --- Details & OCR ---
+  async function showDetails(asset) {
+    ui.details.innerHTML = `
+      <div class="prop-row"><span>ID</span> <span>${asset.id}</span></div>
+      <div class="prop-row"><span>Page</span> <span>${asset.page}</span></div>
+      <div class="prop-row"><span>Dimensions</span> <span>${asset.width} × ${asset.height}</span></div>
+      <div class="prop-row"><span>Size</span> <span>${(asset.blob.size/1024).toFixed(2)} KB</span></div>
+      <div class="prop-row"><span>Type</span> <span>${asset.blob.type}</span></div>
+      <div style="margin-top:20px">
+        <img src="${asset.url}" style="max-width:100%;border:1px solid var(--bd);border-radius:8px;background:#12151c">
+      </div>
+      <div style="margin-top:15px;display:flex;gap:10px">
+        <button class="primary" style="flex:1" onclick="downloadSingle('${asset.id}')">Download PNG</button>
+        <button style="flex:1" onclick="runOCR('${asset.id}')">Run OCR</button>
+      </div>
+      <div id="ocrResult-${asset.id}" class="ocr-box hidden"></div>
+    `;
+    
+    // Highlight in preview if active
+    if (ui.tabs[1].classList.contains('active')) {
+      renderPreview(asset.id);
     }
-    zip.file('manifest.json', JSON.stringify({pages:state.numPages, assets:manifest}, null, 2));
-    const out = await zip.generateAsync({type:'blob'});
-    download(URL.createObjectURL(out), `pdf-images-${Date.now()}.zip`);
   }
 
-  function download(url, name){
-    const a = document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  window.runOCR = async (id) => {
+    const asset = state.assets.find(a => a.id === id);
+    const box = document.getElementById(`ocrResult-${id}`);
+    if (!asset || !box) return;
+    
+    box.classList.remove('hidden');
+    box.textContent = 'Recognizing text...';
+    
+    try {
+      const { data } = await Tesseract.recognize(asset.blob, 'eng');
+      asset.ocr = data.text;
+      box.textContent = data.text.trim() || '(No text detected)';
+    } catch (e) {
+      box.textContent = 'OCR Error: ' + e.message;
+    }
+  };
+
+  // --- Interactive Preview ---
+  let previewRendered = false;
+  
+  async function renderPreview(highlightId = null) {
+    // Only render the background canvases once to save performance
+    if (!previewRendered) {
+      ui.preview.innerHTML = '';
+      const pagesToShow = [...new Set(state.assets.map(a => a.page))].sort((a,b)=>a-b);
+      
+      for (const pNum of pagesToShow) {
+        const pInfo = state.pages[pNum];
+        if (!pInfo) continue;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'page-wrap';
+        wrap.dataset.page = pNum;
+        
+        // Render PDF Page
+        const canvas = document.createElement('canvas');
+        canvas.width = pInfo.w;
+        canvas.height = pInfo.h;
+        wrap.appendChild(canvas);
+        
+        // Async render
+        pInfo.pageObj.render({ canvasContext: canvas.getContext('2d'), viewport: pInfo.viewport });
+
+        // Add BBoxes
+        const pageAssets = state.assets.filter(a => a.page === pNum);
+        pageAssets.forEach(asset => {
+          const box = document.createElement('div');
+          box.className = 'bbox';
+          box.id = `bbox-${asset.id}`;
+          box.title = `${asset.width}x${asset.height}`;
+          
+          // Calculate Position
+          // 1. Image is 0,0 -> 1,1 in its own space.
+          // 2. Apply Matrix to get PDF coordinates.
+          // 3. Apply Viewport to get Canvas coordinates.
+          
+          const m = asset.matrix;
+          const vp = pInfo.viewport;
+          
+          // Transform (0,0) [Bottom-Left of image usually] and (1,1) [Top-Right]
+          // Note: PDF Matrix is [sx, ky, kx, sy, tx, ty]
+          // x' = x*sx + y*kx + tx
+          // y' = x*ky + y*sy + ty
+          
+          // Point 0,0
+          const x0 = m[4];
+          const y0 = m[5];
+          
+          // Point 1,0 (Width vector)
+          const x1 = 1*m[0] + m[4];
+          const y1 = 1*m[1] + m[5];
+          
+          // Point 0,1 (Height vector)
+          const x2 = 1*m[2] + m[4];
+          const y2 = 1*m[3] + m[5];
+          
+          // Convert to Viewport (Canvas) pixels
+          // Note: We need to handle rotation/flipping implied by the matrix.
+          // Simplest way: Project 0,0 and 1,1 (assuming no skew) or calculate width/height from vectors.
+          
+          const p0 = vp.convertToViewportPoint(x0, y0);
+          const p1 = vp.convertToViewportPoint(x1, y1);
+          const p2 = vp.convertToViewportPoint(x2, y2);
+          
+          // Calculate bounding box from projected points
+          // Since PDF coords (Y-up) vs Canvas (Y-down) are handled by convertToViewportPoint
+          
+          // Width is distance between p0 and p1 (roughly)
+          // Height is distance between p0 and p2
+          
+          // A more robust way for orthogonal images:
+          const minX = Math.min(p0[0], p1[0], p2[0]);
+          const maxX = Math.max(p0[0], p1[0], p2[0]);
+          const minY = Math.min(p0[1], p1[1], p2[1]);
+          const maxY = Math.max(p0[1], p1[1], p2[1]);
+          
+          box.style.left = minX + 'px';
+          box.style.top = minY + 'px';
+          box.style.width = (maxX - minX) + 'px';
+          box.style.height = (maxY - minY) + 'px';
+          
+          box.onclick = (e) => { e.stopPropagation(); showDetails(asset); };
+          wrap.appendChild(box);
+        });
+
+        ui.preview.appendChild(wrap);
+      }
+      previewRendered = true;
+    }
+
+    // Handle Highlighting
+    document.querySelectorAll('.bbox').forEach(b => b.classList.remove('active'));
+    if (highlightId) {
+      const el = document.getElementById(`bbox-${highlightId}`);
+      if (el) {
+        el.classList.add('active');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }
+
+  // --- Downloads ---
+
+  window.downloadSingle = (id) => {
+    const asset = state.assets.find(a => a.id === id);
+    if (asset) saveBlob(asset.blob, `image-${asset.id}.png`);
+  };
+
+  async function downloadBatch(asZip) {
+    const targets = state.assets.filter(a => state.selected.has(a.id));
+    if (!targets.length) return;
+
+    if (asZip) {
+      ui.status.textContent = 'Zipping...';
+      const zip = new JSZip();
+      targets.forEach(a => zip.file(`image-${a.id}.png`, a.blob));
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveBlob(content, 'extracted_images.zip');
+      ui.status.textContent = 'Ready';
+    } else {
+      // Download separately with delay to prevent browser blocking
+      ui.status.textContent = 'Downloading files...';
+      for (let i = 0; i < targets.length; i++) {
+        saveBlob(targets[i].blob, `image-${targets[i].id}.png`);
+        await new Promise(r => setTimeout(r, 500)); // 500ms delay
+      }
+      ui.status.textContent = 'Done';
+    }
+  }
+
+  function exportJSON() {
+    const data = state.assets.map(a => ({
+      id: a.id,
+      page: a.page,
+      width: a.width,
+      height: a.height,
+      ocr: a.ocr || null
+    }));
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    saveBlob(blob, 'manifest.json');
+  }
+
+  function saveBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
 })();
